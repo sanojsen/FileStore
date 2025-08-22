@@ -85,4 +85,6 @@ const FileItem = memo(({ file, formatFileSize, formatDate }) => {
   );
 });
 
+FileItem.displayName = 'FileItem';
+
 export default FileItem;

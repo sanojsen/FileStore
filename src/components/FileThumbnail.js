@@ -51,7 +51,7 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
       setCurrentSrc(imageSrc);
       setImageLoading(true);
     }
-  }, [imageSrc]); // Removed currentSrc dependency to prevent loops
+  }, [imageSrc, currentSrc]); // Added currentSrc dependency
 
   // Reset states when file changes
   useEffect(() => {
@@ -182,5 +182,7 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
 
   return getFileIcon(file.fileType, file.mimeType);
 });
+
+FileThumbnail.displayName = 'FileThumbnail';
 
 export default FileThumbnail;

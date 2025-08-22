@@ -189,12 +189,6 @@ export default function Dashboard() {
         throw new Error(data.error || 'Failed to fetch files');
       }
 
-      console.log('Files received from API:', data.files.map(f => ({
-        name: f.originalName,
-        createdAt: f.createdAt,
-        uploadedAt: f.uploadedAt
-      })));
-
       if (reset || pageNum === 1) {
         setFiles(data.files);
       } else {
@@ -212,12 +206,19 @@ export default function Dashboard() {
     }
   }, [filter, sortBy]);
 
+  // Load more files (defined before useEffect that uses it)
+  const loadMore = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      fetchFiles(page + 1, false);
+    }
+  }, [hasMore, loadingMore, loading, fetchFiles, page]);
+
   // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
     if (status === 'authenticated' && session) {
       fetchFiles(1, true);
     }
-  }, [status, fetchFiles]); // Removed session dependency to prevent re-fetches
+  }, [status, filter, sortBy]); // Use filter and sortBy instead of fetchFiles
 
   // Prevent tab from being discarded by keeping it active
   useEffect(() => {
@@ -270,14 +271,7 @@ export default function Dashboard() {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading]);
-
-  // Load more files
-  const loadMore = useCallback(() => {
-    if (hasMore && !loadingMore && !loading) {
-      fetchFiles(page + 1, false);
-    }
-  }, [hasMore, loadingMore, loading, fetchFiles, page]);
+  }, [hasMore, loadingMore, loading, loadMore]); // Now loadMore is properly defined above
 
   // Format file size
   const formatFileSize = (bytes) => {
@@ -588,7 +582,7 @@ export default function Dashboard() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [viewerOpen, currentFileIndex, viewableFiles.length]);
+  }, [viewerOpen, currentFileIndex, viewableFiles.length, goToNext, goToPrevious]);
 
   // Full-screen viewer component
   const FileViewer = () => {
@@ -1168,7 +1162,7 @@ export default function Dashboard() {
             {!hasMore && files.length > 0 && (
               <div className="border-t border-gray-200 p-6 text-center">
                 <div className="text-gray-400 text-sm">
-                  You've reached the end. No more files to load.
+                  You&apos;ve reached the end. No more files to load.
                 </div>
               </div>
             )}

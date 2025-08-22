@@ -70,7 +70,6 @@ export async function POST(request) {
     }
     
     console.log(`File ${originalName}: Using ${dateSource} date - ${createdAt.toISOString()}`);
-    console.log('Metadata received:', JSON.stringify(metadata, null, 2));
 
     // Create file document
     const file = new File({
@@ -92,19 +91,7 @@ export async function POST(request) {
       }
     });
 
-    console.log('File object before save:', {
-      createdAt: file.createdAt,
-      uploadedAt: file.uploadedAt,
-      originalName: file.originalName
-    });
-
     const savedFile = await file.save();
-    
-    console.log('File object after save:', {
-      createdAt: savedFile.createdAt,
-      uploadedAt: savedFile.uploadedAt,
-      originalName: savedFile.originalName
-    });
 
     return NextResponse.json({
       success: true,
