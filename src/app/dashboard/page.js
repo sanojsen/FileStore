@@ -27,18 +27,6 @@ const ProgressiveImage = ({ file, className, style }) => {
   const lowResUrl = thumbnailUrl;
   const highResUrl = file.fileType === 'image' ? originalUrl : thumbnailUrl;
   
-  // Debug logging
-  console.log('ProgressiveImage render:', {
-    fileName: file.originalName,
-    fileType: file.fileType,
-    thumbnailUrl,
-    originalUrl,
-    lowResUrl,
-    highResUrl,
-    imageLoaded,
-    imageError
-  });
-  
   useEffect(() => {
     // Reset all states when file changes
     setImageLoaded(false);
@@ -59,7 +47,6 @@ const ProgressiveImage = ({ file, className, style }) => {
   }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
 
   const handleImageLoad = (e) => {
-    console.log('Image loaded successfully:', e.target.src);
     setImageLoaded(true);
     setImageError(false);
     // Set the actual width of the loaded image to the container
@@ -72,14 +59,12 @@ const ProgressiveImage = ({ file, className, style }) => {
   };
 
   const handleImageError = (e) => {
-    console.log('Image failed to load:', e.target.src);
     setImageError(true);
     setImageLoaded(true); // Hide loading indicator even on error
   };
 
   // If no valid URL, show error immediately
   if (!lowResUrl) {
-    console.log('No valid image URL found for file:', file.originalName);
     return (
       <div className="h-full w-64 flex items-center justify-center bg-gray-100">
         <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,12 +147,11 @@ export default function Dashboard() {
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (status === 'loading') return; // Still loading
-    if (!session) {
+    if (status === 'unauthenticated') {
       router.push('/');
       return;
     }
-  }, [session, status, router]);
+  }, [status, router]);
 
   // Fetch files from the API
   const fetchFiles = useCallback(async (pageNum = 1, reset = false) => {
@@ -211,14 +195,14 @@ export default function Dashboard() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filter, sortBy]); // Only recreate when filter or sortBy changes
+  }, [filter, sortBy]);
 
-  // Initial load
+  // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
-    if (session) {
+    if (status === 'authenticated' && session) {
       fetchFiles(1, true);
     }
-  }, [session, fetchFiles]); // Now fetchFiles is stable
+  }, [status, fetchFiles]); // Removed session dependency to prevent re-fetches
 
   // Prevent tab from being discarded by keeping it active
   useEffect(() => {

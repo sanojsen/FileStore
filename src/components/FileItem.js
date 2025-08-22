@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import FileThumbnail from './FileThumbnail';
 
-const FileItem = ({ file, formatFileSize, formatDate }) => {
+const FileItem = memo(({ file, formatFileSize, formatDate }) => {
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
   
   const handleDownload = () => {
@@ -82,6 +83,6 @@ const FileItem = ({ file, formatFileSize, formatDate }) => {
       </div>
     </div>
   );
-};
+});
 
 export default FileItem;

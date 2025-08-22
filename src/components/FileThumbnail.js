@@ -1,9 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 
-const FileThumbnail = ({ file, size = 'w-16 h-16', className = '' }) => {
+const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [fallbackError, setFallbackError] = useState(false);
@@ -12,52 +12,46 @@ const FileThumbnail = ({ file, size = 'w-16 h-16', className = '' }) => {
   
   // Determine the best image source to use
   const getImageSrc = () => {
-    // For images, try original file first if thumbnails are consistently failing
-    // This provides better user experience while thumbnail generation is being fixed
-    if (file.fileType === 'image' && !fallbackError) {
-      if (!imageError) {
-        // Try thumbnail first for images
-        if (file.thumbnailPath) {
-          const thumbnailUrl = `${baseUrl}${file.thumbnailPath}`;
-          console.log('Trying thumbnail for image:', thumbnailUrl);
-          return thumbnailUrl;
+      // For images, try original file first if thumbnails are consistently failing
+      // This provides better user experience while thumbnail generation is being fixed
+      if (file.fileType === 'image' && !fallbackError) {
+        if (!imageError) {
+          // Try thumbnail first for images
+          if (file.thumbnailPath) {
+            const thumbnailUrl = `${baseUrl}${file.thumbnailPath}`;
+            return thumbnailUrl;
+          } else {
+            // No thumbnail available, use original
+            const originalUrl = `${baseUrl}${file.filePath}`;
+            return originalUrl;
+          }
         } else {
-          // No thumbnail available, use original
+          // Thumbnail failed, try original
           const originalUrl = `${baseUrl}${file.filePath}`;
-          console.log('No thumbnail, using original image:', originalUrl);
           return originalUrl;
         }
-      } else {
-        // Thumbnail failed, try original
-        const originalUrl = `${baseUrl}${file.filePath}`;
-        console.log('Thumbnail failed, trying original image:', originalUrl);
-        return originalUrl;
       }
-    }
-    
-    // For videos, try thumbnail first, then skip to icon if it fails
-    if (file.fileType === 'video') {
-      if (file.thumbnailPath && !imageError) {
-        const thumbnailUrl = `${baseUrl}${file.thumbnailPath}`;
-        console.log('Trying video thumbnail:', thumbnailUrl);
-        return thumbnailUrl;
-      }
-      // Videos without thumbnails or failed thumbnails show generic icon
-      return null;
-    }
-    
-    return null;
+      
+      // For videos, try thumbnail first, then skip to icon if it fails
+      if (file.fileType === 'video') {
+        if (file.thumbnailPath && !imageError) {
+          const thumbnailUrl = `${baseUrl}${file.thumbnailPath}`;
+          return thumbnailUrl;
+        }
+        // Videos without thumbnails or failed thumbnails show generic icon
+        return null;
+      }    return null;
   };
 
   const imageSrc = getImageSrc();
   
-  // Update current source when it changes
+  // Update current source when it changes (prevent infinite loops)
   useEffect(() => {
     if (imageSrc !== currentSrc) {
       setCurrentSrc(imageSrc);
       setImageLoading(true);
     }
-  }, [imageSrc, currentSrc]);
+  }, [imageSrc]); // Removed currentSrc dependency to prevent loops
 
   // Reset states when file changes
   useEffect(() => {
@@ -82,19 +76,10 @@ const FileThumbnail = ({ file, size = 'w-16 h-16', className = '' }) => {
           className={`object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12.5vw"
           onLoad={() => {
-            console.log('Image loaded successfully:', imageSrc);
             setImageLoading(false);
           }}
           onError={() => {
             console.error('Image failed to load:', imageSrc);
-            console.log('File info:', {
-              originalName: file.originalName,
-              fileType: file.fileType,
-              thumbnailPath: file.thumbnailPath,
-              filePath: file.filePath,
-              currentError: imageError,
-              fallbackError: fallbackError
-            });
             setImageLoading(false);
             if (!imageError && file.thumbnailPath && file.fileType === 'image') {
               // Try original file if thumbnail failed for images
@@ -196,6 +181,6 @@ const FileThumbnail = ({ file, size = 'w-16 h-16', className = '' }) => {
   };
 
   return getFileIcon(file.fileType, file.mimeType);
-};
+});
 
 export default FileThumbnail;

@@ -21,7 +21,7 @@ export default function Home() {
     if (status === 'authenticated') {
       router.push('/dashboard');
     }
-  }, [status, router]);
+  }, [status, router]); // Removed session dependency
 
   useEffect(() => {
     const urlMessage = searchParams.get('message');

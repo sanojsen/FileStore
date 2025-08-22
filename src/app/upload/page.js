@@ -24,7 +24,7 @@ export default function Upload() {
     );
   }
 
-  if (!session) {
+  if (status === 'unauthenticated') {
     router.push('/');
     return null;
   }
