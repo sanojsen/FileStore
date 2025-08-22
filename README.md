@@ -1,33 +1,147 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 📁 FileStores - Secure File Management System
 
-## Getting Started
+A modern, secure file management system built with Next.js 15, featuring cloud storage, thumbnail generation, and PWA capabilities.
 
-First, run the development server:
+## ✨ Features
 
+- 🔐 **Secure Authentication** - NextAuth with MongoDB
+- ☁️ **Cloud Storage** - Cloudflare R2 integration
+- 🖼️ **Smart Thumbnails** - Client-side thumbnail generation
+- 📱 **PWA Ready** - Installable as mobile/desktop app
+- 🗂️ **File Organization** - Date-based grouping using EXIF data
+- 📤 **Drag & Drop Upload** - Modern upload interface
+- 🔍 **File Search & Filter** - Advanced file management
+- 📊 **Real-time Progress** - Upload progress tracking
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- MongoDB Atlas account
+- Cloudflare R2 storage account
+
+### Installation
+
+1. **Clone and install:**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd filestores
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Environment Setup:**
+Copy `.env.example` to `.env.local` and configure:
+```bash
+# Authentication
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+# Database
+MONGODB_URI=mongodb+srv://...
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Cloudflare R2
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_ACCESS_KEY_ID=your-access-key
+CLOUDFLARE_SECRET_ACCESS_KEY=your-secret-key  
+CLOUDFLARE_BUCKET_NAME=your-bucket-name
+CLOUDFLARE_PUBLIC_URL=https://pub-xxx.r2.dev
+```
 
-## Learn More
+3. **Start Development:**
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Visit [http://localhost:3000](http://localhost:3000) to see your app!
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🏗️ Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   ├── dashboard/         # Main file management
+│   ├── upload/            # File upload interface
+│   └── layout.js          # Root layout with PWA
+├── components/            # Reusable React components
+├── lib/                   # Utilities and integrations
+└── models/                # Database models
+```
+
+## 🛠️ Technology Stack
+
+- **Framework:** Next.js 15 with Turbopack
+- **Authentication:** NextAuth.js
+- **Database:** MongoDB with Mongoose
+- **Storage:** Cloudflare R2 (S3-compatible)
+- **Styling:** Tailwind CSS
+- **PWA:** Service Workers + Web App Manifest
+- **File Processing:** Sharp, EXIFR, Canvas API
+
+## 📦 Key Dependencies
+
+- `next` - React framework
+- `next-auth` - Authentication
+- `mongodb` & `mongoose` - Database
+- `@aws-sdk/client-s3` - R2 storage client
+- `sharp` - Image processing
+- `exifr` - EXIF data extraction
+- `tailwindcss` - Styling
+
+## 🎯 Deployment
+
+### Vercel (Recommended)
+
+1. Connect your GitHub repo to Vercel
+2. Set environment variables in Vercel dashboard
+3. Deploy automatically on push
+
+### Manual Build
+
+```bash
+npm run build
+npm start
+```
+
+## 🔧 Development Scripts
+
+```bash
+npm run dev      # Start development server
+npm run build    # Build for production  
+npm start       # Start production server
+npm run lint    # Run ESLint
+```
+
+## 📱 PWA Features
+
+- **Offline Support** - Service worker caching
+- **Install Prompt** - Add to home screen
+- **Background Sync** - Upload sync when online
+- **Push Notifications** - Ready for implementation
+
+## 🔒 Security Features
+
+- JWT-based authentication
+- Secure file uploads with validation
+- Environment variable protection
+- Input sanitization and validation
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## 📄 License
+
+This project is private and proprietary.
+
+---
+
+Built with ❤️ using modern web technologies
 
 ## Deploy on Vercel
 

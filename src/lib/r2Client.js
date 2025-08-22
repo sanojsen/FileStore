@@ -1,5 +1,4 @@
 import { S3Client } from '@aws-sdk/client-s3';
-
 const r2Client = new S3Client({
   region: 'auto',
   endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
@@ -8,5 +7,4 @@ const r2Client = new S3Client({
     secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY,
   },
 });
-
-export default r2Client;
+export default r2Client;

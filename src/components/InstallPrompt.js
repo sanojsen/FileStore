@@ -1,12 +1,9 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-
   useEffect(() => {
     // Check if app is already installed
     const checkInstallation = () => {
@@ -14,61 +11,45 @@ export default function InstallPrompt() {
         setIsInstalled(true);
       }
     };
-
     checkInstallation();
-
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e) => {
-      console.log('beforeinstallprompt fired');
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallPrompt(true);
     };
-
     // Listen for app installed event
     const handleAppInstalled = () => {
-      console.log('PWA was installed');
       setShowInstallPrompt(false);
       setIsInstalled(true);
       setDeferredPrompt(null);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
-
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-
     deferredPrompt.prompt();
     const result = await deferredPrompt.userChoice;
-    
     if (result.outcome === 'accepted') {
-      console.log('User accepted the install prompt');
     } else {
-      console.log('User dismissed the install prompt');
     }
-    
     setDeferredPrompt(null);
     setShowInstallPrompt(false);
   };
-
   const handleDismiss = () => {
     setShowInstallPrompt(false);
     // Hide for this session
     sessionStorage.setItem('installPromptDismissed', 'true');
   };
-
   // Don't show if already installed, dismissed, or no prompt available
   if (isInstalled || !showInstallPrompt || sessionStorage.getItem('installPromptDismissed')) {
     return null;
   }
-
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm bg-blue-600 text-white p-4 rounded-lg shadow-lg z-50">
       <div className="flex items-start space-x-3">
@@ -100,4 +81,4 @@ export default function InstallPrompt() {
       </div>
     </div>
   );
-}
+}

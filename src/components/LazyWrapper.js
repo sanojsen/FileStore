@@ -1,12 +1,9 @@
 'use client';
-
 import { useState, useEffect, useRef, memo } from 'react';
-
 const LazyWrapper = memo(({ children, className = '', rootMargin = '50px' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
   const elementRef = useRef(null);
-
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -23,16 +20,13 @@ const LazyWrapper = memo(({ children, className = '', rootMargin = '50px' }) => 
         threshold: 0.1
       }
     );
-
     if (elementRef.current) {
       observer.observe(elementRef.current);
     }
-
     return () => {
       observer.disconnect();
     };
   }, [rootMargin]);
-
   return (
     <div ref={elementRef} className={className}>
       {hasBeenVisible ? children : (
@@ -41,7 +35,5 @@ const LazyWrapper = memo(({ children, className = '', rootMargin = '50px' }) => 
     </div>
   );
 });
-
 LazyWrapper.displayName = 'LazyWrapper';
-
-export default LazyWrapper;
+export default LazyWrapper;

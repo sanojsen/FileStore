@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import exifr from 'exifr';
-
 export async function POST(request) {
   try {
     // Check authentication
@@ -10,20 +9,15 @@ export async function POST(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
     const formData = await request.formData();
     const file = formData.get('file');
-    
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
-
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
     let metadata = {};
-
     // Only extract EXIF metadata - no heavy processing
     if (file.type.startsWith('image/')) {
       try {
@@ -37,7 +31,6 @@ export async function POST(request) {
             if (gpsRef === 'S' || gpsRef === 'W') decimal = -decimal;
             return decimal;
           };
-
           metadata = {
             camera: {
               make: exifData.Make,
@@ -56,12 +49,10 @@ export async function POST(request) {
               digitized: exifData.DateTimeDigitized
             }
           };
-
           // GPS location if available
           if (exifData.GPSLatitude && exifData.GPSLongitude) {
             const latitude = convertGpsToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
             const longitude = convertGpsToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
-            
             if (latitude !== null && longitude !== null) {
               metadata.location = {
                 latitude: latitude,
@@ -72,15 +63,12 @@ export async function POST(request) {
           }
         }
       } catch (exifError) {
-        console.log('No EXIF data found or error reading EXIF:', exifError.message);
       }
     }
-
     return NextResponse.json({
       success: true,
       metadata
     });
-
   } catch (error) {
     console.error('Error extracting metadata:', error);
     return NextResponse.json(
@@ -88,4 +76,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+}

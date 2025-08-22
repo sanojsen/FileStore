@@ -1,15 +1,12 @@
 'use client';
-
 import Image from 'next/image';
 import { useState, useEffect, memo } from 'react';
-
 const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [fallbackError, setFallbackError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState('');
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
-  
   // Determine the best image source to use
   const getImageSrc = () => {
       // For images, try original file first if thumbnails are consistently failing
@@ -31,7 +28,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
           return originalUrl;
         }
       }
-      
       // For videos, try thumbnail first, then skip to icon if it fails
       if (file.fileType === 'video') {
         if (file.thumbnailPath && !imageError) {
@@ -42,9 +38,7 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
         return null;
       }    return null;
   };
-
   const imageSrc = getImageSrc();
-  
   // Update current source when it changes (prevent infinite loops)
   useEffect(() => {
     if (imageSrc !== currentSrc) {
@@ -52,14 +46,12 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
       setImageLoading(true);
     }
   }, [imageSrc, currentSrc]); // Added currentSrc dependency
-
   // Reset states when file changes
   useEffect(() => {
     setImageError(false);
     setFallbackError(false);
     setImageLoading(true);
   }, [file._id]);
-  
   // Show image/video thumbnail if we have a valid source
   if (imageSrc) {
     return (
@@ -83,21 +75,17 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             setImageLoading(false);
             if (!imageError && file.thumbnailPath && file.fileType === 'image') {
               // Try original file if thumbnail failed for images
-              console.log('Switching to original image file...');
               setImageError(true);
             } else if (!imageError && file.thumbnailPath && file.fileType === 'video') {
               // For videos, skip to icon if thumbnail fails
-              console.log('Video thumbnail failed, showing icon...');
               setImageError(true);
               setFallbackError(true);
             } else {
               // Show generic icon
-              console.log('Showing generic icon...');
               setFallbackError(true);
             }
           }}
         />
-        
         {/* Debug indicator - remove in production */}
         {process.env.NODE_ENV === 'development' && (
           <div className="absolute top-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5 rounded">
@@ -109,11 +97,9 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
       </div>
     );
   }
-
   // Generic thumbnails for different file types
   const getFileIcon = (fileType, mimeType) => {
     const iconClass = `${size} flex items-center justify-center flex-shrink-0 ${className}`;
-    
     switch (fileType) {
       case 'image':
         return (
@@ -123,7 +109,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       case 'video':
         return (
           <div className={`${iconClass} bg-gradient-to-br from-red-100 to-red-200`}>
@@ -132,7 +117,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       case 'audio':
         return (
           <div className={`${iconClass} bg-gradient-to-br from-purple-100 to-purple-200`}>
@@ -141,7 +125,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       case 'pdf':
         return (
           <div className={`${iconClass} bg-gradient-to-br from-red-100 to-red-200`}>
@@ -150,7 +133,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       case 'document':
         return (
           <div className={`${iconClass} bg-gradient-to-br from-blue-100 to-blue-200`}>
@@ -159,7 +141,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       case 'archive':
         return (
           <div className={`${iconClass} bg-gradient-to-br from-yellow-100 to-yellow-200`}>
@@ -168,7 +149,6 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             </svg>
           </div>
         );
-      
       default:
         return (
           <div className={`${iconClass} bg-gradient-to-br from-gray-100 to-gray-200`}>
@@ -179,10 +159,7 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
         );
     }
   };
-
   return getFileIcon(file.fileType, file.mimeType);
 });
-
 FileThumbnail.displayName = 'FileThumbnail';
-
-export default FileThumbnail;
+export default FileThumbnail;

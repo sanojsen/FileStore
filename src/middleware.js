@@ -1,5 +1,4 @@
 import { withAuth } from 'next-auth/middleware';
-
 export default withAuth(
   function middleware(req) {
     // Additional logic can be added here if needed
@@ -13,7 +12,6 @@ export default withAuth(
     },
   }
 );
-
 export const config = {
   matcher: ['/dashboard/:path*', '/upload/:path*', '/files/:path*'],
-};
+};

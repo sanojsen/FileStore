@@ -1,9 +1,7 @@
 'use client';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
 export default function Register() {
   const [formData, setFormData] = useState({
     name: '',
@@ -14,38 +12,28 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
-
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters long');
       setLoading(false);
       return;
     }
-
     try {
-      console.log('Attempting registration with:', { 
-        name: formData.name, 
-        email: formData.email 
-      });
-      
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -57,10 +45,7 @@ export default function Register() {
           password: formData.password,
         }),
       });
-
       const data = await response.json();
-      console.log('Registration response:', { status: response.status, data });
-
       if (response.ok) {
         // Registration successful, redirect to login
         router.push('/?message=Registration successful. Please sign in.');
@@ -74,7 +59,6 @@ export default function Register() {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -156,13 +140,11 @@ export default function Register() {
               />
             </div>
           </div>
-
           {error && (
             <div className="rounded-md bg-red-50 p-4">
               <div className="text-sm text-red-700">{error}</div>
             </div>
           )}
-
           <div>
             <button
               type="submit"
@@ -176,4 +158,4 @@ export default function Register() {
       </div>
     </div>
   );
-}
+}

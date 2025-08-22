@@ -1,21 +1,17 @@
 'use client';
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-
 // Use dynamic import with no SSR to avoid bundling issues
 const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
   ssr: false,
   loading: () => <div className="w-16 h-16 bg-gray-200 animate-pulse rounded"></div>
 });
-
 const LazyWrapper = dynamic(() => import('../../components/LazyWrapper'), {
   ssr: false,
   loading: () => <div className="bg-gray-100 animate-pulse rounded h-32"></div>
 });
-
 // Progressive Image Component for better loading experience
 const ProgressiveImage = ({ file, className, style }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -23,22 +19,18 @@ const ProgressiveImage = ({ file, className, style }) => {
   const [imageWidth, setImageWidth] = useState('auto');
   const [imageError, setImageError] = useState(false);
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
-  
   // Get thumbnail and original URLs
   const thumbnailUrl = file.thumbnailUrl || (file.thumbnailPath ? `${baseUrl}${file.thumbnailPath}` : null);
   const originalUrl = file.fileType === 'image' ? `${baseUrl}${file.filePath}` : thumbnailUrl;
-  
   // Use thumbnail for videos, original for images
   const lowResUrl = thumbnailUrl;
   const highResUrl = file.fileType === 'image' ? originalUrl : thumbnailUrl;
-  
   useEffect(() => {
     // Reset all states when file changes
     setImageLoaded(false);
     setHighResLoaded(false);
     setImageWidth('auto');
     setImageError(false);
-    
     // For images, preload the high-res version
     if (file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
       const img = new Image();
@@ -50,7 +42,6 @@ const ProgressiveImage = ({ file, className, style }) => {
       setHighResLoaded(true);
     }
   }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
-
   const handleImageLoad = (e) => {
     setImageLoaded(true);
     setImageError(false);
@@ -62,12 +53,10 @@ const ProgressiveImage = ({ file, className, style }) => {
       setImageWidth(`${naturalWidth}px`);
     }
   };
-
   const handleImageError = (e) => {
     setImageError(true);
     setImageLoaded(true); // Hide loading indicator even on error
   };
-
   // If no valid URL, show error immediately
   if (!lowResUrl) {
     return (
@@ -78,7 +67,6 @@ const ProgressiveImage = ({ file, className, style }) => {
       </div>
     );
   }
-
   return (
     <div 
       className="h-full relative inline-block"
@@ -98,7 +86,6 @@ const ProgressiveImage = ({ file, className, style }) => {
         onLoad={handleImageLoad}
         onError={handleImageError}
       />
-      
       {/* High-res original (for images only, loads on top) */}
       {file.fileType === 'image' && highResUrl && lowResUrl && highResUrl !== lowResUrl && !imageError && (
         <img
@@ -111,14 +98,12 @@ const ProgressiveImage = ({ file, className, style }) => {
           onError={() => setHighResLoaded(false)} // Fall back to thumbnail on error
         />
       )}
-      
       {/* Loading indicator - only show when no image is loaded */}
       {!imageLoaded && !imageError && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
           <div className="animate-pulse bg-gray-300 rounded-full w-8 h-8"></div>
         </div>
       )}
-      
       {/* Error state */}
       {imageError && (
         <div className="h-full w-64 flex items-center justify-center bg-gray-100">
@@ -130,7 +115,6 @@ const ProgressiveImage = ({ file, className, style }) => {
     </div>
   );
 };
-
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -149,11 +133,9 @@ export default function Dashboard() {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [viewableFiles, setViewableFiles] = useState([]);
   const [downloading, setDownloading] = useState(false);
-  
   // Refs for infinite scroll
   const loadMoreRef = useRef(null);
   const observerRef = useRef(null);
-
   // Redirect to login if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -161,7 +143,6 @@ export default function Dashboard() {
       return;
     }
   }, [status, router]);
-
   // Fetch files from the API
   const fetchFiles = useCallback(async (pageNum = 1, reset = false) => {
     try {
@@ -171,30 +152,24 @@ export default function Dashboard() {
       } else {
         setLoadingMore(true);
       }
-
       const params = new URLSearchParams({
         page: pageNum.toString(),
         limit: '12',
         sortBy: sortBy
       });
-
       if (filter !== 'all') {
         params.append('type', filter);
       }
-
       const response = await fetch(`/api/files?${params}`);
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch files');
       }
-
       if (reset || pageNum === 1) {
         setFiles(data.files);
       } else {
         setFiles(prev => [...prev, ...data.files]);
       }
-      
       setHasMore(data.hasMore);
       setPage(pageNum);
     } catch (err) {
@@ -205,45 +180,37 @@ export default function Dashboard() {
       setLoadingMore(false);
     }
   }, [filter, sortBy]);
-
   // Load more files (defined before useEffect that uses it)
   const loadMore = useCallback(() => {
     if (hasMore && !loadingMore && !loading) {
       fetchFiles(page + 1, false);
     }
   }, [hasMore, loadingMore, loading, fetchFiles, page]);
-
   // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
     if (status === 'authenticated' && session) {
       fetchFiles(1, true);
     }
   }, [status, filter, sortBy]); // Use filter and sortBy instead of fetchFiles
-
   // Prevent tab from being discarded by keeping it active
   useEffect(() => {
     const keepAlive = () => {
       // This prevents the tab from being discarded by Chrome
       if (document.hidden) return;
     };
-
     const handleVisibilityChange = () => {
       if (!document.hidden && session) {
         // Tab became visible again, optionally refresh data if needed
-        console.log('Tab became visible');
       }
     };
-
     // Keep the tab active
     const interval = setInterval(keepAlive, 30000); // Every 30 seconds
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [session]);
-
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -259,20 +226,16 @@ export default function Dashboard() {
         threshold: 0.1
       }
     );
-
     observerRef.current = observer;
-
     if (loadMoreRef.current) {
       observer.observe(loadMoreRef.current);
     }
-
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
     };
   }, [hasMore, loadingMore, loading, loadMore]); // Now loadMore is properly defined above
-
   // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -281,7 +244,6 @@ export default function Dashboard() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
   // Handle file selection
   const toggleFileSelection = (fileId) => {
     setSelectedFiles(prev => {
@@ -294,50 +256,40 @@ export default function Dashboard() {
       return newSet;
     });
   };
-
   // Select all files in current view
   const selectAllFiles = () => {
     setSelectedFiles(new Set(files.map(file => file._id)));
   };
-
   // Clear all selections
   const clearSelection = () => {
     setSelectedFiles(new Set());
     setIsSelectionMode(false);
   };
-
   // Delete selected files
   const deleteSelectedFiles = async () => {
     if (selectedFiles.size === 0) return;
-
     const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedFiles.size} file${selectedFiles.size !== 1 ? 's' : ''}? This action cannot be undone.`);
     if (!confirmDelete) return;
-
     setDeleting(true);
     try {
       const deletePromises = Array.from(selectedFiles).map(async (fileId) => {
         const response = await fetch(`/api/files?id=${fileId}`, {
           method: 'DELETE',
         });
-        
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           console.error(`Failed to delete file ${fileId}:`, errorData);
           return { success: false, fileId, error: errorData.error || response.statusText };
         }
-        
         return { success: true, fileId };
       });
-
       const results = await Promise.all(deletePromises);
       const failedDeletes = results.filter(result => !result.success);
       const successfulDeletes = results.filter(result => result.success);
-
       if (failedDeletes.length > 0) {
         // Show detailed error information
         const errorMessages = failedDeletes.map(fail => `File ID ${fail.fileId}: ${fail.error}`).join('\n');
         console.error('Delete failures:', errorMessages);
-        
         if (successfulDeletes.length > 0) {
           // Some succeeded, some failed
           setError(`Successfully deleted ${successfulDeletes.length} file${successfulDeletes.length !== 1 ? 's' : ''}, but failed to delete ${failedDeletes.length} file${failedDeletes.length !== 1 ? 's' : ''}. Check console for details.`);
@@ -362,19 +314,15 @@ export default function Dashboard() {
       setDeleting(false);
     }
   };
-
   // Select all files in a date group
   const selectDateGroup = (groupFiles) => {
     if (!isSelectionMode) {
       setIsSelectionMode(true);
     }
-    
     const groupFileIds = groupFiles.map(file => file._id);
     const allSelected = groupFileIds.every(id => selectedFiles.has(id));
-    
     setSelectedFiles(prev => {
       const newSet = new Set(prev);
-      
       if (allSelected) {
         // Deselect all files in the group
         groupFileIds.forEach(id => newSet.delete(id));
@@ -382,29 +330,23 @@ export default function Dashboard() {
         // Select all files in the group
         groupFileIds.forEach(id => newSet.add(id));
       }
-      
       return newSet;
     });
   };
-
   // Download single file
   const downloadFile = async (file) => {
     try {
-      console.log('Downloading:', file.originalName);
-      
       // Use the dedicated download API endpoint with proper credentials
       const response = await fetch(`/api/files/download?id=${file._id}`, {
         method: 'GET',
         credentials: 'same-origin'
       });
-      
       if (!response.ok) {
         // Get error details
         const errorText = await response.text();
         console.error('Download failed:', response.status, errorText);
         throw new Error(`Download failed (${response.status}): ${errorText}`);
       }
-      
       // Get the blob and trigger download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -415,21 +357,17 @@ export default function Dashboard() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
     } catch (error) {
       console.error('Download error:', error);
       setError(`Failed to download ${file.originalName}: ${error.message}`);
     }
   };
-
   // Download selected files as ZIP
   const downloadSelectedFiles = async () => {
     if (selectedFiles.size === 0) return;
-
     setDownloading(true);
     try {
       const selectedFileIds = Array.from(selectedFiles);
-      
       const response = await fetch('/api/files/download-zip', {
         method: 'POST',
         headers: {
@@ -437,31 +375,24 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ fileIds: selectedFileIds }),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || 'Failed to create ZIP file');
       }
-
       // Get the blob from response
       const blob = await response.blob();
-      
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
       link.download = `files-${timestamp}.zip`;
-      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       // Clean up
       window.URL.revokeObjectURL(url);
-      
     } catch (error) {
       console.error('Error downloading ZIP:', error);
       setError(error.message || 'Failed to download files as ZIP');
@@ -469,19 +400,15 @@ export default function Dashboard() {
       setDownloading(false);
     }
   };
-
   // Format dates client-side to avoid hydration mismatch
   const [formattedDates, setFormattedDates] = useState({});
   const [groupedFiles, setGroupedFiles] = useState({});
-  
   useEffect(() => {
     const newFormatted = {};
     const grouped = {};
-    
     files.forEach(file => {
       // Use createdAt if available, otherwise fall back to uploadedAt
       const dateToUse = file.createdAt || file.uploadedAt;
-      
       if (dateToUse) {
         const date = new Date(dateToUse);
         const dateKey = date.toDateString(); // e.g., "Mon Aug 22 2025"
@@ -491,7 +418,6 @@ export default function Dashboard() {
           month: 'long',
           day: 'numeric'
         });
-        
         // Store formatted date for individual files
         newFormatted[file._id] = date.toLocaleString('en-US', {
           year: 'numeric',
@@ -500,7 +426,6 @@ export default function Dashboard() {
           hour: '2-digit',
           minute: '2-digit'
         });
-        
         // Group files by date
         if (!grouped[dateKey]) {
           grouped[dateKey] = {
@@ -512,7 +437,6 @@ export default function Dashboard() {
         grouped[dateKey].files.push(file);
       }
     });
-    
     // Sort groups by date (newest first)
     const sortedGrouped = Object.keys(grouped)
       .sort((a, b) => grouped[b].date - grouped[a].date)
@@ -520,11 +444,9 @@ export default function Dashboard() {
         acc[key] = grouped[key];
         return acc;
       }, {});
-    
     setFormattedDates(newFormatted);
     setGroupedFiles(sortedGrouped);
   }, [files]);
-
   // Handle file click (you can expand this to show file details or download)
   const handleFileClick = (file) => {
     if (isSelectionMode) {
@@ -540,33 +462,27 @@ export default function Dashboard() {
         setViewerOpen(true);
       } else {
         // For other file types, just log for now
-        console.log('File clicked:', file);
       }
     }
   };
-
   // Navigate to previous file in viewer
   const goToPrevious = () => {
     setCurrentFileIndex(prev => prev > 0 ? prev - 1 : viewableFiles.length - 1);
   };
-
   // Navigate to next file in viewer
   const goToNext = () => {
     setCurrentFileIndex(prev => prev < viewableFiles.length - 1 ? prev + 1 : 0);
   };
-
   // Close viewer
   const closeViewer = () => {
     setViewerOpen(false);
     setCurrentFileIndex(0);
     setViewableFiles([]);
   };
-
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (!viewerOpen) return;
-      
       switch (e.key) {
         case 'Escape':
           closeViewer();
@@ -579,19 +495,15 @@ export default function Dashboard() {
           break;
       }
     };
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [viewerOpen, currentFileIndex, viewableFiles.length, goToNext, goToPrevious]);
-
   // Full-screen viewer component
   const FileViewer = () => {
     if (!viewerOpen || viewableFiles.length === 0) return null;
-    
     const currentFile = viewableFiles[currentFileIndex];
     const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
     const fileUrl = `${baseUrl}${currentFile.filePath}`;
-    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center">
         {/* Close button */}
@@ -604,7 +516,6 @@ export default function Dashboard() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-
         {/* Navigation arrows */}
         {viewableFiles.length > 1 && (
           <>
@@ -617,7 +528,6 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            
             <button
               onClick={goToNext}
               className="absolute right-4 top-1/2 transform -translate-y-1/2 z-60 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
@@ -629,14 +539,12 @@ export default function Dashboard() {
             </button>
           </>
         )}
-
         {/* File counter */}
         {viewableFiles.length > 1 && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 text-white bg-black bg-opacity-50 px-3 py-1 rounded-full text-sm">
             {currentFileIndex + 1} of {viewableFiles.length}
           </div>
         )}
-
         {/* File info */}
         <div className="absolute bottom-4 left-4 right-4 z-60 text-white bg-black bg-opacity-50 p-4 rounded-lg">
           <h3 className="text-lg font-medium truncate" title={currentFile.originalName}>
@@ -650,7 +558,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
         {/* Main content */}
         <div className="max-w-full max-h-full p-8 flex items-center justify-center">
           {currentFile.fileType === 'image' ? (
@@ -672,7 +579,6 @@ export default function Dashboard() {
             </video>
           ) : null}
         </div>
-
         {/* Thumbnail strip for navigation */}
         {viewableFiles.length > 1 && (
           <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-60">
@@ -711,11 +617,9 @@ export default function Dashboard() {
       </div>
     );
   };
-
   // Get default icon based on file type
   const getDefaultIcon = (fileType, mimeType) => {
     const iconClass = "w-full h-full flex items-center justify-center bg-gray-100";
-    
     if (fileType === 'image') {
       return (
         <div className={iconClass}>
@@ -774,7 +678,6 @@ export default function Dashboard() {
       );
     }
   };
-
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -785,11 +688,9 @@ export default function Dashboard() {
       </div>
     );
   }
-
   if (!session) {
     return null; // Will redirect to login
   }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Compact Header */}
@@ -814,7 +715,6 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-
             {/* Right side - Action buttons */}
             <div className="flex items-center space-x-2">
               {/* Upload button */}
@@ -827,12 +727,10 @@ export default function Dashboard() {
                 </svg>
                 <span className="hidden sm:inline">Upload</span>
               </button>
-
               {/* User avatar */}
               <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
                 {session?.user?.email?.charAt(0).toUpperCase()}
               </div>
-
               {/* Logout button */}
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
@@ -847,7 +745,6 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
-
       {/* Filters and Controls */}
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -873,7 +770,6 @@ export default function Dashboard() {
                 <option value="other">Other</option>
               </select>
             </div>
-
             {/* Sort Options */}
             <div className="flex items-center space-x-2">
               <label htmlFor="sort" className="text-sm font-medium text-gray-700">
@@ -890,7 +786,6 @@ export default function Dashboard() {
                 <option value="createdDate">Legacy Created Date</option>
               </select>
             </div>
-
             {/* File Count and Selection Controls */}
             <div className="ml-auto flex items-center gap-4">
               {isSelectionMode ? (
@@ -941,7 +836,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-
         {/* Error State */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
@@ -960,7 +854,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* Loading State */}
         {loading && (
           <div className="bg-white rounded-lg shadow-sm p-12">
@@ -970,7 +863,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* Empty State */}
         {!loading && !error && files.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm p-12">
@@ -993,7 +885,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
         {/* Files Gallery */}
         {!loading && !error && files.length > 0 && (
           <div className="bg-white shadow-sm overflow-hidden">
@@ -1015,7 +906,6 @@ export default function Dashboard() {
                           const selectedInGroup = groupFileIds.filter(id => selectedFiles.has(id)).length;
                           const allSelected = selectedInGroup === groupFileIds.length;
                           const someSelected = selectedInGroup > 0;
-                          
                           return (
                             <>
                               {/* Selection checkbox */}
@@ -1036,7 +926,6 @@ export default function Dashboard() {
                                   ) : null}
                                 </div>
                               </div>
-                              
                               {/* Date content */}
                               <div className="flex items-center gap-3">
                                 {/* Date text and file count */}
@@ -1045,7 +934,6 @@ export default function Dashboard() {
                                     {group.formattedDate}
                                   </h2>
                                 </div>
-                                
                                 {/* Delete action - only show when files are selected */}
                                 {someSelected && (
                                   <button
@@ -1077,7 +965,6 @@ export default function Dashboard() {
                       </div>
                       <div className="flex-grow border-t border-gray-300"></div>
                     </div>
-                    
                     {/* Files for this date */}
                     <div className="flex flex-wrap gap-1">
                       {group.files.map((file) => (
@@ -1112,7 +999,6 @@ export default function Dashboard() {
                               </div>
                             </div>
                           )}
-                          
                           {/* Thumbnail with aspect ratio maintained */}
                           <div className="h-full relative">
                             {file.thumbnailUrl || (file.fileType === 'image' || file.fileType === 'video') ? (
@@ -1126,7 +1012,6 @@ export default function Dashboard() {
                                 {getDefaultIcon(file.fileType, file.mimeType)}
                               </div>
                             )}
-                            
                             {/* File Info Overlay - appears on hover */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col justify-end z-25">
                               <div className="p-3 text-white">
@@ -1151,7 +1036,6 @@ export default function Dashboard() {
                                   }`}>
                                     {file.fileType}
                                   </span>
-                                  
                                   {/* Download button */}
                                   <button
                                     onClick={(e) => {
@@ -1177,7 +1061,6 @@ export default function Dashboard() {
                 );
               })}
             </div>
-
             {/* Intersection Observer Target for Infinite Scroll */}
             {hasMore && (
               <div 
@@ -1196,7 +1079,6 @@ export default function Dashboard() {
                 )}
               </div>
             )}
-            
             {/* End of results indicator */}
             {!hasMore && files.length > 0 && (
               <div className="border-t border-gray-200 p-6 text-center">
@@ -1208,7 +1090,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
       {/* Full-screen File Viewer */}
       <FileViewer />
     </div>

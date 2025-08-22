@@ -1,10 +1,8 @@
 'use client';
-
 import { useState, useEffect, Suspense } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-
 function HomeContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -16,48 +14,37 @@ function HomeContent() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     if (status === 'authenticated') {
       router.push('/dashboard');
     }
   }, [status, router]); // Removed session dependency
-
   useEffect(() => {
     const urlMessage = searchParams.get('message');
     if (urlMessage) {
       setMessage(urlMessage);
     }
   }, [searchParams]);
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      console.log('Attempting login with:', { email: formData.email });
-      
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
         redirect: false
       });
-
-      console.log('SignIn result:', result);
-
       if (result?.error) {
         setError('Invalid email or password');
         console.error('Login error:', result.error);
       } else if (result?.ok) {
-        console.log('Login successful, redirecting to dashboard');
         router.push('/dashboard');
       } else {
         setError('Something went wrong. Please try again.');
@@ -69,7 +56,6 @@ function HomeContent() {
       setLoading(false);
     }
   };
-
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-cyan-50">
@@ -77,7 +63,6 @@ function HomeContent() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center px-4">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -90,7 +75,6 @@ function HomeContent() {
             Securely upload, store, and manage your videos, photos, and files in the cloud. 
             Built with Next.js, MongoDB, and Cloudflare R2 storage.
           </p>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl shadow-sm">
               <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mx-auto mb-3">
@@ -101,7 +85,6 @@ function HomeContent() {
               <h3 className="text-sm font-semibold text-gray-900 mb-1">Easy Upload</h3>
               <p className="text-xs text-gray-600">Drag and drop your files</p>
             </div>
-
             <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl shadow-sm">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,7 +94,6 @@ function HomeContent() {
               <h3 className="text-sm font-semibold text-gray-900 mb-1">Secure Storage</h3>
               <p className="text-xs text-gray-600">Enterprise-grade security</p>
             </div>
-
             <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl shadow-sm">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,7 +105,6 @@ function HomeContent() {
             </div>
           </div>
         </div>
-
         {/* Right side - Login Form */}
         <div className="w-full max-w-md mx-auto">
           <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-white/20">
@@ -136,7 +117,6 @@ function HomeContent() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h2>
               <p className="text-gray-600">Sign in to access your files</p>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -154,7 +134,6 @@ function HomeContent() {
                   onChange={handleChange}
                 />
               </div>
-
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                   Password
@@ -171,19 +150,16 @@ function HomeContent() {
                   onChange={handleChange}
                 />
               </div>
-
               {message && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-sm text-green-600">{message}</p>
                 </div>
               )}
-
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                   <p className="text-sm text-red-600">{error}</p>
                 </div>
               )}
-
               <button
                 type="submit"
                 disabled={loading}
@@ -202,7 +178,6 @@ function HomeContent() {
                 )}
               </button>
             </form>
-
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don&apos;t have an account?{' '}
@@ -217,11 +192,10 @@ function HomeContent() {
     </div>
   );
 }
-
 export default function Home() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <HomeContent />
     </Suspense>
   );
-}
+}

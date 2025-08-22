@@ -1,6 +1,5 @@
 import sharp from 'sharp';
 import exifr from 'exifr';
-import { VideoProcessor } from './videoProcessor.js';
 
 export class FileMetadataExtractor {
   // Helper function to convert GPS coordinates from DMS to decimal degrees
@@ -8,22 +7,17 @@ export class FileMetadataExtractor {
     if (!Array.isArray(gpsArray) || gpsArray.length < 3) {
       return null;
     }
-    
     const [degrees, minutes, seconds] = gpsArray;
     let decimal = degrees + (minutes / 60) + (seconds / 3600);
-    
     // Apply direction reference (S and W are negative)
     if (gpsRef === 'S' || gpsRef === 'W') {
       decimal = -decimal;
     }
-    
     return decimal;
   }
-
   static async extractImageMetadata(buffer, mimeType) {
     try {
       const metadata = {};
-      
       // Get basic image information using Sharp
       const imageInfo = await sharp(buffer).metadata();
       metadata.dimensions = {
@@ -34,7 +28,6 @@ export class FileMetadataExtractor {
       metadata.colorSpace = imageInfo.space;
       metadata.hasAlpha = imageInfo.hasAlpha;
       metadata.density = imageInfo.density;
-
       // Extract EXIF data
       try {
         const exifData = await exifr.parse(buffer);
@@ -44,7 +37,6 @@ export class FileMetadataExtractor {
             model: exifData.Model,
             software: exifData.Software
           };
-          
           metadata.settings = {
             iso: exifData.ISO,
             fNumber: exifData.FNumber,
@@ -52,17 +44,14 @@ export class FileMetadataExtractor {
             focalLength: exifData.FocalLength,
             flash: exifData.Flash
           };
-          
           metadata.dateTime = {
             taken: exifData.DateTimeOriginal || exifData.DateTime,
             digitized: exifData.DateTimeDigitized
           };
-          
           if (exifData.GPSLatitude && exifData.GPSLongitude) {
             // Convert GPS coordinates from degrees, minutes, seconds to decimal degrees
             const latitude = this.convertGpsToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
             const longitude = this.convertGpsToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
-            
             if (latitude !== null && longitude !== null) {
               metadata.location = {
                 latitude: latitude,
@@ -73,25 +62,20 @@ export class FileMetadataExtractor {
           }
         }
       } catch (exifError) {
-        console.log('No EXIF data found or error reading EXIF:', exifError.message);
       }
-
       return metadata;
     } catch (error) {
       console.error('Error extracting image metadata:', error);
       return {};
     }
   }
-
   static async extractVideoMetadata(buffer, mimeType) {
     try {
-      // Use the VideoProcessor to extract detailed metadata
-      const videoMetadata = await VideoProcessor.getVideoMetadata(buffer);
-      
+      // Basic video metadata (detailed extraction moved to client-side)
       const metadata = {
         type: 'video',
         mimeType: mimeType,
-        ...videoMetadata
+        size: buffer.length
       };
       
       return metadata;
@@ -103,30 +87,22 @@ export class FileMetadataExtractor {
       };
     }
   }
-
   static async createThumbnail(buffer, mimeType, maxSize = 300) {
-    console.log('FileMetadataExtractor: Creating thumbnail for type:', mimeType);
     try {
       if (mimeType.startsWith('image/')) {
-        console.log('FileMetadataExtractor: Processing image thumbnail');
         return await this.createImageThumbnail(buffer, maxSize);
       } else if (mimeType.startsWith('video/')) {
-        console.log('FileMetadataExtractor: Processing video thumbnail');
         return await this.createVideoThumbnail(buffer, maxSize);
       }
-      
-      console.log('FileMetadataExtractor: Unsupported file type for thumbnail');
       return null;
     } catch (error) {
       console.error('FileMetadataExtractor: Error creating thumbnail:', error);
       return null;
     }
   }
-
   static async createImageThumbnail(buffer, maxSize = 300) {
     try {
       const originalMeta = await sharp(buffer).metadata();
-      
       // Handle rotation from EXIF data
       let processedBuffer = buffer;
       try {
@@ -134,18 +110,14 @@ export class FileMetadataExtractor {
         processedBuffer = await sharp(buffer)
           .rotate() // This automatically rotates based on EXIF orientation
           .toBuffer();
-        
         // Get metadata after rotation
         const rotatedMeta = await sharp(processedBuffer).metadata();
         originalMeta.width = rotatedMeta.width;
         originalMeta.height = rotatedMeta.height;
       } catch (rotationError) {
-        console.log('No rotation needed or error rotating:', rotationError.message);
         processedBuffer = buffer;
       }
-
       const aspectRatio = originalMeta.width / originalMeta.height;
-      
       let width, height;
       if (aspectRatio > 1) {
         // Landscape: limit by width
@@ -156,7 +128,6 @@ export class FileMetadataExtractor {
         height = Math.min(maxSize, originalMeta.height);
         width = Math.round(height * aspectRatio);
       }
-
       const thumbnailBuffer = await sharp(processedBuffer)
         .resize(width, height, {
           fit: 'inside',
@@ -169,7 +140,6 @@ export class FileMetadataExtractor {
           mozjpeg: true // Better compression algorithm
         })
         .toBuffer();
-
       return {
         buffer: thumbnailBuffer,
         width,
@@ -181,31 +151,28 @@ export class FileMetadataExtractor {
       return null;
     }
   }
-
   static async createVideoThumbnail(buffer, maxSize = 300) {
-    console.log('FileMetadataExtractor: Starting video thumbnail creation');
     try {
-      // Use the server-side VideoProcessor for more reliable thumbnail generation
-      const result = await VideoProcessor.createVideoThumbnail(buffer, maxSize);
-      console.log('FileMetadataExtractor: VideoProcessor result:', result ? 'Success' : 'Failed');
-      return result;
+      // Video thumbnail generation moved to client-side
+      // This server-side method is deprecated
+      console.warn('Server-side video thumbnail generation is deprecated. Use client-side generation.');
+      return null;
     } catch (error) {
       console.error('FileMetadataExtractor: Error creating video thumbnail:', error);
       return null;
     }
   }
-
+  
   static async createVideoThumbnailSimple(buffer, maxSize = 300) {
     try {
-      // This method is now deprecated in favor of VideoProcessor
-      console.log('Using VideoProcessor for video thumbnails');
-      return await this.createVideoThumbnail(buffer, maxSize);
+      // This method is now deprecated - thumbnails handled client-side
+      console.warn('Server-side video thumbnail generation is deprecated. Use client-side generation.');
+      return null;
     } catch (error) {
       console.error('Error creating simple video thumbnail:', error);
       return null;
     }
   }
-
   static getFileCategory(mimeType) {
     if (mimeType.startsWith('image/')) return 'image';
     if (mimeType.startsWith('video/')) return 'video';

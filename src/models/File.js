@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 const fileSchema = new mongoose.Schema({
   _id: {
     type: String,
@@ -92,13 +91,11 @@ const fileSchema = new mongoose.Schema({
   timestamps: false,
   _id: false
 });
-
 // Add indexes for better performance
 fileSchema.index({ userId: 1, uploadedAt: -1 });
 fileSchema.index({ userId: 1, createdAt: -1 });
 fileSchema.index({ userId: 1, 'metadata.createdDate': -1 });
 fileSchema.index({ userId: 1, fileType: 1 });
-
 // Static method to determine file type from MIME type
 fileSchema.statics.getFileType = function(mimeType) {
   if (!mimeType) return 'other';
@@ -117,19 +114,15 @@ fileSchema.statics.getFileType = function(mimeType) {
       mimeType.includes('7z')) return 'archive';
   return 'other';
 };
-
 // Instance method to get display name
 fileSchema.methods.getDisplayName = function() {
   return this.originalName || this.fileName;
 };
-
 // Instance method to get file extension
 fileSchema.methods.getExtension = function() {
   const name = this.originalName || this.fileName;
   const lastDot = name.lastIndexOf('.');
   return lastDot > 0 ? name.substring(lastDot + 1).toLowerCase() : '';
 };
-
 const File = mongoose.models.File || mongoose.model('File', fileSchema);
-
-export default File;
+export default File;

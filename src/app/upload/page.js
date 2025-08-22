@@ -1,22 +1,18 @@
 'use client';
-
 import { useState, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ClientThumbnailGenerator } from '../../lib/clientThumbnailGenerator';
-
 export default function Upload() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const fileInputRef = useRef(null);
-  
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploadResults, setUploadResults] = useState([]);
-
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -24,46 +20,36 @@ export default function Upload() {
       </div>
     );
   }
-
   if (status === 'unauthenticated') {
     router.push('/');
     return null;
   }
-
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    
     const droppedFiles = Array.from(e.dataTransfer.files);
     handleNewFiles(droppedFiles);
   };
-
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
     handleNewFiles(selectedFiles);
   };
-
   const handleNewFiles = async (newFiles) => {
     if (newFiles.length === 0) return;
-    
     // Add files to state immediately
     const startIndex = files.length;
     setFiles(prev => [...prev, ...newFiles]);
-    
     // Start uploading immediately
     await uploadFiles(newFiles, startIndex);
   };
-
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
   };
-
   const handleDragLeave = (e) => {
     e.preventDefault();
     setIsDragging(false);
   };
-
   const removeFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
     // Clear any progress for this file
@@ -73,7 +59,6 @@ export default function Upload() {
       return newProgress;
     });
   };
-
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -81,12 +66,9 @@ export default function Upload() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
   const uploadFiles = async (filesToUpload = files, startIndex = 0) => {
     if (filesToUpload.length === 0) return;
-
     setUploading(true);
-    
     try {
       // Step 1: Get presigned URLs for all files
       const fileInfos = filesToUpload.map(file => ({
@@ -94,7 +76,6 @@ export default function Upload() {
         fileSize: file.size,
         mimeType: file.type || 'application/octet-stream'
       }));
-
       // Initialize progress for new files
       setUploadProgress(prev => {
         const progress = { ...prev };
@@ -103,7 +84,6 @@ export default function Upload() {
         });
         return progress;
       });
-
       const presignedResponse = await fetch('/api/upload/presigned-url', {
         method: 'POST',
         headers: {
@@ -111,23 +91,18 @@ export default function Upload() {
         },
         body: JSON.stringify({ files: fileInfos }),
       });
-
       if (!presignedResponse.ok) {
         const error = await presignedResponse.json();
         throw new Error(error.error || 'Failed to get upload URLs');
       }
-
       const { uploads } = await presignedResponse.json();
-
       // Step 2: Upload each file with metadata processing
       for (let i = 0; i < filesToUpload.length; i++) {
         const file = filesToUpload[i];
         const uploadInfo = uploads[i];
         const progressIndex = startIndex + i;
-        
         try {
           setUploadProgress(prev => ({ ...prev, [progressIndex]: 15 }));
-
           // Upload main file to R2 directly
           const uploadResponse = await fetch(uploadInfo.presignedUrl, {
             method: 'PUT',
@@ -136,32 +111,24 @@ export default function Upload() {
               'Content-Type': file.type || 'application/octet-stream',
             },
           });
-
           if (!uploadResponse.ok) {
             throw new Error('Failed to upload to Cloudflare R2');
           }
-
           setUploadProgress(prev => ({ ...prev, [progressIndex]: 40 }));
-
           // Process metadata and create thumbnail for images/videos
           let extractedMetadata = {};
           let thumbnailCreated = false;
           let clientThumbnail = null;
-
           // Add file system metadata (available from File object)
           if (file.lastModified) {
             extractedMetadata.fileSystemDate = new Date(file.lastModified).toISOString();
           }
-
           // Create client-side thumbnail for images and videos
           if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
             try {
-              console.log(`Generating client-side thumbnail for ${file.name}...`);
               clientThumbnail = await ClientThumbnailGenerator.createThumbnail(file, 300);
-              
               if (clientThumbnail && uploadInfo.thumbnailPresignedUrl) {
                 setUploadProgress(prev => ({ ...prev, [progressIndex]: 50 }));
-                
                 // Upload thumbnail to R2
                 const thumbnailUploadResponse = await fetch(uploadInfo.thumbnailPresignedUrl, {
                   method: 'PUT',
@@ -170,10 +137,8 @@ export default function Upload() {
                     'Content-Type': 'image/jpeg',
                   },
                 });
-
                 if (thumbnailUploadResponse.ok) {
                   thumbnailCreated = true;
-                  console.log(`Thumbnail uploaded successfully for ${file.name}`);
                 } else {
                   console.warn(`Failed to upload thumbnail for ${file.name}`);
                 }
@@ -182,20 +147,16 @@ export default function Upload() {
               console.warn('Failed to generate client thumbnail:', thumbnailError);
             }
           }
-
               setUploadProgress(prev => ({ ...prev, [progressIndex]: 60 }));
-
           // Extract EXIF metadata from server (lightweight - no thumbnails)
           if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
             try {
               const formData = new FormData();
               formData.append('file', file);
-
               const metadataResponse = await fetch('/api/upload/extract-metadata', {
                 method: 'POST',
                 body: formData,
               });
-
               if (metadataResponse.ok) {
                 const metadataResult = await metadataResponse.json();
                 // Merge file system metadata with EXIF metadata
@@ -208,9 +169,7 @@ export default function Upload() {
               console.warn('Failed to extract server metadata:', metadataError);
             }
           }
-
           setUploadProgress(prev => ({ ...prev, [progressIndex]: 80 }));
-
           // Step 3: Save metadata to database via API
           const completeResponse = await fetch('/api/upload/complete', {
             method: 'POST',
@@ -230,9 +189,7 @@ export default function Upload() {
               description: ''
             }),
           });
-
           setUploadProgress(prev => ({ ...prev, [progressIndex]: 100 }));
-
           if (completeResponse.ok) {
             const result = await completeResponse.json();
             setUploadResults(prev => [...prev, { 
@@ -270,10 +227,8 @@ export default function Upload() {
         }]);
       });
     }
-
     setUploading(false);
   };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Compact Navigation */}
@@ -294,7 +249,6 @@ export default function Upload() {
                 <p className="text-xs text-gray-500">Upload files</p>
               </div>
             </div>
-
             {/* Right side - User info and actions */}
             <div className="flex items-center space-x-2">
               {/* User greeting */}
@@ -306,7 +260,6 @@ export default function Upload() {
                   {session.user.name || session.user.email}
                 </span>
               </div>
-
               {/* Dashboard button */}
               <Link
                 href="/dashboard"
@@ -317,7 +270,6 @@ export default function Upload() {
                 </svg>
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
-
               {/* Logout button */}
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
@@ -332,7 +284,6 @@ export default function Upload() {
           </div>
         </div>
       </header>
-
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Simple Header Section */}
         <div className="mb-6 text-center">
@@ -343,7 +294,6 @@ export default function Upload() {
             Drag and drop files or click to browse
           </p>
         </div>
-
         {/* Simple Upload Area */}
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors duration-200 ${
@@ -362,20 +312,16 @@ export default function Upload() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            
             <p className="text-lg font-medium text-gray-700 mb-2">
               {isDragging ? 'Drop files here' : 'Choose files to upload'}
             </p>
-            
             <p className="text-sm text-gray-500 mb-4">
               Supports images, videos, and documents
             </p>
-
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
               Browse Files
             </button>
           </div>
-          
           <input
             ref={fileInputRef}
             type="file"
@@ -385,7 +331,6 @@ export default function Upload() {
             accept="*/*"
           />
         </div>
-
         {/* Selected Files */}
         {files.length > 0 && (
           <div className="mt-8">
@@ -445,7 +390,6 @@ export default function Upload() {
             </div>
           </div>
         )}
-
         {/* Upload Results */}
         {uploadResults.length > 0 && (
           <div className="mt-8">
@@ -480,7 +424,6 @@ export default function Upload() {
                           </p>
                         </div>
                       </div>
-                      
                       {/* Show metadata if available */}
                       {result.metadata && Object.keys(result.metadata).length > 0 && (
                         <div className="mt-2 p-2 bg-green-100 rounded text-xs">
