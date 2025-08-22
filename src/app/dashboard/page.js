@@ -99,22 +99,93 @@ export default function Dashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Format date
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+
+  // Format dates client-side to avoid hydration mismatch
+  const [formattedDates, setFormattedDates] = useState({});
+  useEffect(() => {
+    const newFormatted = {};
+    files.forEach(file => {
+      if (file.uploadedAt) {
+        newFormatted[file._id] = new Date(file.uploadedAt).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
     });
-  };
+    setFormattedDates(newFormatted);
+  }, [files]);
 
   // Handle file click (you can expand this to show file details or download)
   const handleFileClick = (file) => {
     // For now, let's just log the file info
     console.log('File clicked:', file);
     // You could open a modal, navigate to a detail page, etc.
+  };
+
+  // Get default icon based on file type
+  const getDefaultIcon = (fileType, mimeType) => {
+    const iconClass = "w-full h-full flex items-center justify-center bg-gray-100";
+    
+    if (fileType === 'image') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+      );
+    } else if (fileType === 'video') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </div>
+      );
+    } else if (fileType === 'audio') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+          </svg>
+        </div>
+      );
+    } else if (fileType === 'pdf') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12,2A3,3 0 0,1 15,5V7H15A2,2 0 0,1 17,9V19A2,2 0 0,1 15,21H5A2,2 0 0,1 3,19V9A2,2 0 0,1 5,7H9V5A3,3 0 0,1 12,2M12,4A1,1 0 0,0 11,5V7H13V5A1,1 0 0,0 12,4Z" />
+          </svg>
+        </div>
+      );
+    } else if (fileType === 'document') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+      );
+    } else if (fileType === 'archive') {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        </div>
+      );
+    } else {
+      return (
+        <div className={iconClass}>
+          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+      );
+    }
   };
 
   if (status === 'loading') {
@@ -257,25 +328,55 @@ export default function Dashboard() {
 
         {/* Files Gallery */}
         {!loading && !error && files.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-6">
+          <div className="bg-white shadow-sm overflow-hidden">
+            <div className="flex flex-wrap gap-1 p-6">
               {files.map((file) => (
                 <div
                   key={file._id}
                   onClick={() => handleFileClick(file)}
-                  className="group cursor-pointer bg-gray-50 rounded-lg overflow-hidden hover:shadow-md transition-shadow duration-200"
+                  className="group cursor-pointer bg-gray-50 overflow-hidden hover:shadow-md transition-shadow duration-200 flex flex-col"
                 >
                   {/* Thumbnail */}
-                  <div className="aspect-square">
-                    <FileThumbnail 
-                      file={file} 
-                      size="w-full h-full" 
-                      className="rounded-t-lg"
-                    />
+                  <div className="h-32 flex-shrink-0">
+                    {file.thumbnailUrl || (file.fileType === 'image' || file.fileType === 'video') ? (
+                      <FileThumbnail 
+                        file={file} 
+                        size="h-full w-auto" 
+                        className=""
+                      />
+                    ) : (
+                      getDefaultIcon(file.fileType, file.mimeType)
+                    )}
                   </div>
                   
                   {/* File Info */}
-                  <div className="p-3">
+                  <div className="p-2 min-w-0 flex-grow">
+                    <h3 className="text-xs font-medium text-gray-900 truncate" title={file.originalName}>
+                      {file.originalName}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatFileSize(file.size)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formattedDates[file._id] || ''}
+                    </p>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                        file.fileType === 'image' ? 'bg-green-100 text-green-800' :
+                        file.fileType === 'video' ? 'bg-red-100 text-red-800' :
+                        file.fileType === 'audio' ? 'bg-purple-100 text-purple-800' :
+                        file.fileType === 'pdf' ? 'bg-red-100 text-red-800' :
+                        file.fileType === 'document' ? 'bg-blue-100 text-blue-800' :
+                        file.fileType === 'archive' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {file.fileType}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* File Info */}
+                  {/* <div className="p-3">
                     <h3 className="text-sm font-medium text-gray-900 truncate" title={file.originalName}>
                       {file.originalName}
                     </h3>
@@ -286,7 +387,6 @@ export default function Dashboard() {
                       {formatDate(file.uploadedAt)}
                     </p>
                     
-                    {/* File Type Badge */}
                     <div className="mt-2">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         file.fileType === 'image' ? 'bg-green-100 text-green-800' :
@@ -300,7 +400,7 @@ export default function Dashboard() {
                         {file.fileType}
                       </span>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               ))}
             </div>
