@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -9,6 +9,11 @@ import dynamic from 'next/dynamic';
 const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
   ssr: false,
   loading: () => <div className="w-16 h-16 bg-gray-200 animate-pulse rounded"></div>
+});
+
+const LazyWrapper = dynamic(() => import('../../components/LazyWrapper'), {
+  ssr: false,
+  loading: () => <div className="bg-gray-100 animate-pulse rounded h-32"></div>
 });
 
 // Progressive Image Component for better loading experience
@@ -144,6 +149,10 @@ export default function Dashboard() {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [viewableFiles, setViewableFiles] = useState([]);
   const [downloading, setDownloading] = useState(false);
+  
+  // Refs for infinite scroll
+  const loadMoreRef = useRef(null);
+  const observerRef = useRef(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -165,7 +174,7 @@ export default function Dashboard() {
 
       const params = new URLSearchParams({
         page: pageNum.toString(),
-        limit: '20',
+        limit: '12',
         sortBy: sortBy
       });
 
@@ -228,12 +237,41 @@ export default function Dashboard() {
     };
   }, [session]);
 
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px', // Start loading 100px before reaching the target
+        threshold: 0.1
+      }
+    );
+
+    observerRef.current = observer;
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [hasMore, loadingMore, loading]);
+
   // Load more files
-  const loadMore = () => {
-    if (hasMore && !loadingMore) {
+  const loadMore = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
       fetchFiles(page + 1, false);
     }
-  };
+  }, [hasMore, loadingMore, loading, fetchFiles, page]);
 
   // Format file size
   const formatFileSize = (bytes) => {
@@ -1000,11 +1038,15 @@ export default function Dashboard() {
                     {/* Files for this date */}
                     <div className="flex flex-wrap gap-1">
                       {group.files.map((file) => (
-                        <div
+                        <LazyWrapper
                           key={file._id}
-                          onClick={() => handleFileClick(file)}
                           className="group cursor-pointer bg-gray-50 overflow-hidden hover:shadow-md transition-shadow duration-200 relative h-64 inline-block"
+                          rootMargin="100px"
                         >
+                          <div
+                            onClick={() => handleFileClick(file)}
+                            className="w-full h-full"
+                          >
                           {/* Selection Checkbox */}
                           {isSelectionMode && (
                             <div className="absolute top-2 right-2 z-30">
@@ -1084,7 +1126,8 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                        </div>
+                          </div>
+                        </LazyWrapper>
                       ))}
                     </div>
                   </div>
@@ -1092,23 +1135,31 @@ export default function Dashboard() {
               })}
             </div>
 
-            {/* Load More Button */}
+            {/* Intersection Observer Target for Infinite Scroll */}
             {hasMore && (
+              <div 
+                ref={loadMoreRef}
+                className="border-t border-gray-200 p-6 text-center"
+              >
+                {loadingMore ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-gray-600">Loading more files...</span>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-sm">
+                    Scroll down to load more files
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* End of results indicator */}
+            {!hasMore && files.length > 0 && (
               <div className="border-t border-gray-200 p-6 text-center">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loadingMore ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More Files'
-                  )}
-                </button>
+                <div className="text-gray-400 text-sm">
+                  You've reached the end. No more files to load.
+                </div>
               </div>
             )}
           </div>
