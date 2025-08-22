@@ -138,7 +138,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('uploadDate');
+  const [sortBy, setSortBy] = useState('createdAt');
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -188,6 +188,12 @@ export default function Dashboard() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch files');
       }
+
+      console.log('Files received from API:', data.files.map(f => ({
+        name: f.originalName,
+        createdAt: f.createdAt,
+        uploadedAt: f.uploadedAt
+      })));
 
       if (reset || pageNum === 1) {
         setFiles(data.files);
@@ -479,8 +485,11 @@ export default function Dashboard() {
     const grouped = {};
     
     files.forEach(file => {
-      if (file.uploadedAt) {
-        const date = new Date(file.uploadedAt);
+      // Use createdAt if available, otherwise fall back to uploadedAt
+      const dateToUse = file.createdAt || file.uploadedAt;
+      
+      if (dateToUse) {
+        const date = new Date(dateToUse);
         const dateKey = date.toDateString(); // e.g., "Mon Aug 22 2025"
         const formattedDate = date.toLocaleDateString('en-US', {
           weekday: 'long',
@@ -843,8 +852,9 @@ export default function Dashboard() {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="createdAt">Date Created (EXIF)</option>
                 <option value="uploadDate">Upload Date</option>
-                <option value="createdDate">Created Date</option>
+                <option value="createdDate">Legacy Created Date</option>
               </select>
             </div>
 

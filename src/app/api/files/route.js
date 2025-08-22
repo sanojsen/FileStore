@@ -29,7 +29,9 @@ export async function GET(request) {
     if (sortBy === 'uploadDate') {
       sortCriteria = { uploadedAt: -1 };
     } else if (sortBy === 'createdDate') {
-      sortCriteria = { 'metadata.createdDate': -1, uploadedAt: -1 };
+      sortCriteria = { createdAt: -1, uploadedAt: -1 };
+    } else if (sortBy === 'createdAt') {
+      sortCriteria = { createdAt: -1, uploadedAt: -1 };
     } else {
       sortCriteria = { uploadedAt: -1 };
     }

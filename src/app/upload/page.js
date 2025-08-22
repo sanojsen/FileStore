@@ -146,6 +146,11 @@ export default function Upload() {
           let extractedMetadata = {};
           let thumbnailCreated = false;
 
+          // Add file system metadata (available from File object)
+          if (file.lastModified) {
+            extractedMetadata.fileSystemDate = new Date(file.lastModified).toISOString();
+          }
+
           if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
             try {
               const formData = new FormData();
@@ -161,7 +166,11 @@ export default function Upload() {
 
               if (metadataResponse.ok) {
                 const metadataResult = await metadataResponse.json();
-                extractedMetadata = metadataResult.metadata || {};
+                // Merge file system metadata with EXIF metadata
+                extractedMetadata = { 
+                  ...extractedMetadata, 
+                  ...(metadataResult.metadata || {})
+                };
                 thumbnailCreated = !!metadataResult.thumbnail;
               }
             } catch (metadataError) {
@@ -403,6 +412,9 @@ export default function Upload() {
                             Uploaded successfully • {formatFileSize(result.file.fileSize)}
                             {result.hasThumbnail && (result.file.mimeType.startsWith('video/') ? ' • Video thumbnail created' : ' • Thumbnail created')}
                             {result.metadata && result.metadata.dimensions && ` • ${result.metadata.dimensions.width}×${result.metadata.dimensions.height}`}
+                            {result.file.createdAt && new Date(result.file.createdAt).getTime() !== new Date(result.file.uploadedAt).getTime() && 
+                              ` • Created: ${new Date(result.file.createdAt).toLocaleDateString()}`
+                            }
                           </p>
                         </div>
                       </div>
@@ -424,6 +436,11 @@ export default function Upload() {
                             {result.metadata.dateTime?.taken && (
                               <div>
                                 <span className="font-medium">Date Taken:</span> {new Date(result.metadata.dateTime.taken).toLocaleDateString()}
+                              </div>
+                            )}
+                            {result.file.createdAt && (
+                              <div>
+                                <span className="font-medium">File Created:</span> {new Date(result.file.createdAt).toLocaleDateString()}
                               </div>
                             )}
                             {result.metadata.duration && (

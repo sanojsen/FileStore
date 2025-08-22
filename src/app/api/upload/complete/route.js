@@ -35,6 +35,43 @@ export async function POST(request) {
       );
     }
 
+    // Determine the createdAt date with a better fallback strategy:
+    // 1. EXIF DateTimeOriginal (when photo/video was taken)
+    // 2. File system metadata (when file was created/modified)  
+    // 3. Current time (upload time) as last resort
+    const uploadTime = new Date(); // Store the upload time
+    let createdAt = uploadTime; // Default to upload time as last resort
+    let dateSource = 'upload'; // Track where the date came from for logging
+    
+    // First, check if metadata contains EXIF date information
+    if (metadata && metadata.dateTime && metadata.dateTime.taken) {
+      try {
+        const exifDate = new Date(metadata.dateTime.taken);
+        if (!isNaN(exifDate.getTime()) && exifDate.getTime() > 0) {
+          createdAt = exifDate;
+          dateSource = 'exif';
+        }
+      } catch (dateError) {
+        console.warn('Invalid EXIF date, trying other fallbacks:', dateError);
+      }
+    }
+    
+    // If no EXIF date, try file system metadata (file modification date)
+    if (dateSource === 'upload' && metadata && metadata.fileSystemDate) {
+      try {
+        const fsDate = new Date(metadata.fileSystemDate);
+        if (!isNaN(fsDate.getTime()) && fsDate.getTime() > 0) {
+          createdAt = fsDate;
+          dateSource = 'filesystem';
+        }
+      } catch (fsError) {
+        console.warn('Invalid file system date, using upload time:', fsError);
+      }
+    }
+    
+    console.log(`File ${originalName}: Using ${dateSource} date - ${createdAt.toISOString()}`);
+    console.log('Metadata received:', JSON.stringify(metadata, null, 2));
+
     // Create file document
     const file = new File({
       userId: session.user.id,
@@ -46,6 +83,7 @@ export async function POST(request) {
       filePath, // Store only the path, not full URL
       thumbnailPath,
       isPublic,
+      createdAt: createdAt,
       metadata: {
         uploadMethod: 'direct-r2',
         tags,
@@ -54,7 +92,19 @@ export async function POST(request) {
       }
     });
 
+    console.log('File object before save:', {
+      createdAt: file.createdAt,
+      uploadedAt: file.uploadedAt,
+      originalName: file.originalName
+    });
+
     const savedFile = await file.save();
+    
+    console.log('File object after save:', {
+      createdAt: savedFile.createdAt,
+      uploadedAt: savedFile.uploadedAt,
+      originalName: savedFile.originalName
+    });
 
     return NextResponse.json({
       success: true,
@@ -69,6 +119,7 @@ export async function POST(request) {
         thumbnailPath: savedFile.thumbnailPath,
         isPublic: savedFile.isPublic,
         uploadedAt: savedFile.uploadedAt,
+        createdAt: savedFile.createdAt,
         metadata: savedFile.metadata
       }
     });

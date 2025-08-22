@@ -48,6 +48,11 @@ const fileSchema = new mongoose.Schema({
     default: Date.now,
     index: true
   },
+  createdAt: {
+    type: Date,
+    index: true,
+    default: Date.now
+  },
   metadata: {
     uploadMethod: {
       type: String,
@@ -90,6 +95,7 @@ const fileSchema = new mongoose.Schema({
 
 // Add indexes for better performance
 fileSchema.index({ userId: 1, uploadedAt: -1 });
+fileSchema.index({ userId: 1, createdAt: -1 });
 fileSchema.index({ userId: 1, 'metadata.createdDate': -1 });
 fileSchema.index({ userId: 1, fileType: 1 });
 
