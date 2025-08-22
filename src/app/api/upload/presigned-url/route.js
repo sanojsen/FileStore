@@ -24,8 +24,8 @@ export async function POST(request) {
       );
     }
 
-    // File size limit (100MB per file)
-    const maxSize = 100 * 1024 * 1024; // 100MB
+    // File size limit (1GB per file to support large video files)
+    const maxSize = 1024 * 1024 * 1024; // 1GB
     
     const userId = session.user.id;
     const date = new Date();
@@ -48,7 +48,7 @@ export async function POST(request) {
 
       if (fileSize > maxSize) {
         return NextResponse.json(
-          { error: `File "${fileName}" exceeds 100MB limit` },
+          { error: `File "${fileName}" exceeds 1GB limit` },
           { status: 400 }
         );
       }

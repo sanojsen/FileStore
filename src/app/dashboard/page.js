@@ -368,20 +368,35 @@ export default function Dashboard() {
   // Download single file
   const downloadFile = async (file) => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
-      const fileUrl = `${baseUrl}${file.filePath}`;
+      console.log('Downloading:', file.originalName);
       
-      // Create a temporary link and trigger download
+      // Use the dedicated download API endpoint with proper credentials
+      const response = await fetch(`/api/files/download?id=${file._id}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        // Get error details
+        const errorText = await response.text();
+        console.error('Download failed:', response.status, errorText);
+        throw new Error(`Download failed (${response.status}): ${errorText}`);
+      }
+      
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = fileUrl;
+      link.href = url;
       link.download = file.originalName;
-      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
     } catch (error) {
-      console.error('Error downloading file:', error);
-      setError('Failed to download file');
+      console.error('Download error:', error);
+      setError(`Failed to download ${file.originalName}: ${error.message}`);
     }
   };
 

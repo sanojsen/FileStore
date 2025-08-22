@@ -301,6 +301,9 @@ export default function Upload() {
             <p className="text-sm text-gray-500 mt-2">
               Videos, images, documents - uploads start automatically
             </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Maximum file size: 1GB per file
+            </p>
           </div>
           <input
             ref={fileInputRef}

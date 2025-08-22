@@ -27,11 +27,11 @@ export async function POST(request) {
       );
     }
 
-    // Validate file size (100MB limit)
-    const maxSize = 100 * 1024 * 1024; // 100MB
+    // Validate file size (1GB limit to support large video files)
+    const maxSize = 1024 * 1024 * 1024; // 1GB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File size exceeds 100MB limit' },
+        { error: 'File size exceeds 1GB limit' },
         { status: 400 }
       );
     }

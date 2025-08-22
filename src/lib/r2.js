@@ -15,7 +15,7 @@ export async function deleteFromR2(key) {
     const cleanKey = key.startsWith('/') ? key.substring(1) : key;
     
     const command = new DeleteObjectCommand({
-      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME,
+      Bucket: process.env.CLOUDFLARE_BUCKET_NAME,
       Key: cleanKey,
     });
 
