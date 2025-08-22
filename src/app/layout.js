@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "../components/AuthProvider";
+import InstallPrompt from "../components/InstallPrompt";
+import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "FileStores",
   description: "Upload and manage your videos, photos, and files",
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({ children }) {
@@ -25,6 +32,8 @@ export default function RootLayout({ children }) {
       >
         <AuthProvider>
           {children}
+          <InstallPrompt />
+          <ServiceWorkerRegistration />
         </AuthProvider>
       </body>
     </html>
