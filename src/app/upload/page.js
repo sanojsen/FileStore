@@ -25,7 +25,7 @@ export default function Upload() {
   }
 
   if (!session) {
-    router.push('/login');
+    router.push('/');
     return null;
   }
 
@@ -34,7 +34,23 @@ export default function Upload() {
     setIsDragging(false);
     
     const droppedFiles = Array.from(e.dataTransfer.files);
-    setFiles(prev => [...prev, ...droppedFiles]);
+    handleNewFiles(droppedFiles);
+  };
+
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    handleNewFiles(selectedFiles);
+  };
+
+  const handleNewFiles = async (newFiles) => {
+    if (newFiles.length === 0) return;
+    
+    // Add files to state immediately
+    const startIndex = files.length;
+    setFiles(prev => [...prev, ...newFiles]);
+    
+    // Start uploading immediately
+    await uploadFiles(newFiles, startIndex);
   };
 
   const handleDragOver = (e) => {
@@ -47,13 +63,14 @@ export default function Upload() {
     setIsDragging(false);
   };
 
-  const handleFileSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFiles(prev => [...prev, ...selectedFiles]);
-  };
-
   const removeFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
+    // Clear any progress for this file
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[index];
+      return newProgress;
+    });
   };
 
   const formatFileSize = (bytes) => {
@@ -64,25 +81,27 @@ export default function Upload() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const uploadFiles = async () => {
-    if (files.length === 0) return;
+  const uploadFiles = async (filesToUpload = files, startIndex = 0) => {
+    if (filesToUpload.length === 0) return;
 
     setUploading(true);
-    setUploadResults([]);
     
     try {
       // Step 1: Get presigned URLs for all files
-      setUploadProgress(prev => {
-        const progress = {};
-        files.forEach((_, index) => progress[index] = 5);
-        return progress;
-      });
-
-      const fileInfos = files.map(file => ({
+      const fileInfos = filesToUpload.map(file => ({
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type || 'application/octet-stream'
       }));
+
+      // Initialize progress for new files
+      setUploadProgress(prev => {
+        const progress = { ...prev };
+        filesToUpload.forEach((_, index) => {
+          progress[startIndex + index] = 5;
+        });
+        return progress;
+      });
 
       const presignedResponse = await fetch('/api/upload/presigned-url', {
         method: 'POST',
@@ -100,14 +119,15 @@ export default function Upload() {
       const { uploads } = await presignedResponse.json();
 
       // Step 2: Upload each file with metadata processing
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
         const uploadInfo = uploads[i];
+        const progressIndex = startIndex + i;
         
         try {
-          setUploadProgress(prev => ({ ...prev, [i]: 15 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 15 }));
 
-          // Upload main file to R2
+          // Upload main file to R2 directly
           const uploadResponse = await fetch(uploadInfo.presignedUrl, {
             method: 'PUT',
             body: file,
@@ -117,10 +137,10 @@ export default function Upload() {
           });
 
           if (!uploadResponse.ok) {
-            throw new Error('Failed to upload to cloud storage');
+            throw new Error('Failed to upload to Cloudflare R2');
           }
 
-          setUploadProgress(prev => ({ ...prev, [i]: 50 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 50 }));
 
           // Process metadata and create thumbnail for images/videos
           let extractedMetadata = {};
@@ -149,9 +169,9 @@ export default function Upload() {
             }
           }
 
-          setUploadProgress(prev => ({ ...prev, [i]: 80 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 80 }));
 
-          // Step 3: Save metadata to database
+          // Step 3: Save metadata to database via API
           const completeResponse = await fetch('/api/upload/complete', {
             method: 'POST',
             headers: {
@@ -171,7 +191,7 @@ export default function Upload() {
             }),
           });
 
-          setUploadProgress(prev => ({ ...prev, [i]: 100 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 100 }));
 
           if (completeResponse.ok) {
             const result = await completeResponse.json();
@@ -185,7 +205,7 @@ export default function Upload() {
             const error = await completeResponse.json();
             setUploadResults(prev => [...prev, { 
               success: false, 
-              error: error.error || 'Failed to save metadata', 
+              error: error.error || 'Failed to save metadata to database', 
               filename: file.name 
             }]);
           }
@@ -196,13 +216,13 @@ export default function Upload() {
             error: error.message || 'Upload failed', 
             filename: file.name 
           }]);
-          setUploadProgress(prev => ({ ...prev, [i]: 0 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 0 }));
         }
       }
     } catch (error) {
       console.error('Batch upload error:', error);
-      // Set error for all files
-      files.forEach((file, index) => {
+      // Set error for all files being uploaded
+      filesToUpload.forEach((file, index) => {
         setUploadResults(prev => [...prev, { 
           success: false, 
           error: error.message || 'Batch upload failed', 
@@ -212,8 +232,6 @@ export default function Upload() {
     }
 
     setUploading(false);
-    setFiles([]);
-    setUploadProgress({});
   };
 
   return (
@@ -281,7 +299,7 @@ export default function Upload() {
               or drag and drop
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              Videos, images, documents up to 100MB each
+              Videos, images, documents - uploads start automatically
             </p>
           </div>
           <input
@@ -298,7 +316,7 @@ export default function Upload() {
         {files.length > 0 && (
           <div className="mt-8">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Selected Files ({files.length})
+              Files ({files.length})
             </h3>
             <div className="space-y-3">
               {files.map((file, index) => (
@@ -313,19 +331,36 @@ export default function Upload() {
                     </p>
                     {uploadProgress[index] !== undefined && (
                       <div className="mt-2">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${uploadProgress[index]}%` }}
-                          ></div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                uploadProgress[index] === 100 
+                                  ? 'bg-green-500' 
+                                  : uploadProgress[index] === 0 
+                                    ? 'bg-red-500' 
+                                    : 'bg-indigo-600'
+                              }`}
+                              style={{ width: `${Math.max(uploadProgress[index], 0)}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-xs text-gray-500 min-w-fit">
+                            {uploadProgress[index] === 100 
+                              ? 'Complete' 
+                              : uploadProgress[index] === 0 
+                                ? 'Failed' 
+                                : `${uploadProgress[index]}%`
+                            }
+                          </span>
                         </div>
                       </div>
                     )}
                   </div>
                   <button
                     onClick={() => removeFile(index)}
-                    disabled={uploading}
-                    className="ml-4 text-red-600 hover:text-red-800 disabled:opacity-50"
+                    disabled={uploadProgress[index] !== undefined && uploadProgress[index] > 0 && uploadProgress[index] < 100}
+                    className="ml-4 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={uploadProgress[index] !== undefined && uploadProgress[index] > 0 && uploadProgress[index] < 100 ? "Cannot remove file while uploading" : "Remove file"}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -333,16 +368,6 @@ export default function Upload() {
                   </button>
                 </div>
               ))}
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={uploadFiles}
-                disabled={uploading || files.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md font-medium transition-colors"
-              >
-                {uploading ? 'Uploading...' : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
-              </button>
             </div>
           </div>
         )}

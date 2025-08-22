@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -10,6 +10,136 @@ const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
   ssr: false,
   loading: () => <div className="w-16 h-16 bg-gray-200 animate-pulse rounded"></div>
 });
+
+// Progressive Image Component for better loading experience
+const ProgressiveImage = ({ file, className, style }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [highResLoaded, setHighResLoaded] = useState(false);
+  const [imageWidth, setImageWidth] = useState('auto');
+  const [imageError, setImageError] = useState(false);
+  const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
+  
+  // Get thumbnail and original URLs
+  const thumbnailUrl = file.thumbnailUrl || (file.thumbnailPath ? `${baseUrl}${file.thumbnailPath}` : null);
+  const originalUrl = file.fileType === 'image' ? `${baseUrl}${file.filePath}` : thumbnailUrl;
+  
+  // Use thumbnail for videos, original for images
+  const lowResUrl = thumbnailUrl;
+  const highResUrl = file.fileType === 'image' ? originalUrl : thumbnailUrl;
+  
+  // Debug logging
+  console.log('ProgressiveImage render:', {
+    fileName: file.originalName,
+    fileType: file.fileType,
+    thumbnailUrl,
+    originalUrl,
+    lowResUrl,
+    highResUrl,
+    imageLoaded,
+    imageError
+  });
+  
+  useEffect(() => {
+    // Reset all states when file changes
+    setImageLoaded(false);
+    setHighResLoaded(false);
+    setImageWidth('auto');
+    setImageError(false);
+    
+    // For images, preload the high-res version
+    if (file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
+      const img = new Image();
+      img.onload = () => setHighResLoaded(true);
+      img.onerror = () => setHighResLoaded(true); // Show thumbnail if high-res fails
+      img.src = highResUrl;
+    } else {
+      // For videos or when no separate high-res version exists
+      setHighResLoaded(true);
+    }
+  }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
+
+  const handleImageLoad = (e) => {
+    console.log('Image loaded successfully:', e.target.src);
+    setImageLoaded(true);
+    setImageError(false);
+    // Set the actual width of the loaded image to the container
+    const img = e.target;
+    if (img.naturalWidth && img.naturalHeight) {
+      const containerHeight = 256; // h-64 = 256px
+      const naturalWidth = (img.naturalWidth / img.naturalHeight) * containerHeight;
+      setImageWidth(`${naturalWidth}px`);
+    }
+  };
+
+  const handleImageError = (e) => {
+    console.log('Image failed to load:', e.target.src);
+    setImageError(true);
+    setImageLoaded(true); // Hide loading indicator even on error
+  };
+
+  // If no valid URL, show error immediately
+  if (!lowResUrl) {
+    console.log('No valid image URL found for file:', file.originalName);
+    return (
+      <div className="h-full w-64 flex items-center justify-center bg-gray-100">
+        <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="h-full relative inline-block"
+      style={{ 
+        width: imageLoaded && imageWidth !== 'auto' ? imageWidth : 'auto', 
+        minWidth: imageLoaded && imageWidth !== 'auto' ? imageWidth : '100px' 
+      }}
+    >
+      {/* Low-res thumbnail (loads first) */}
+      <img
+        src={lowResUrl}
+        alt={file.originalName}
+        className={`${className} relative z-10 transition-opacity duration-300 ${
+          highResLoaded && file.fileType === 'image' ? 'opacity-0' : 'opacity-100'
+        }`}
+        style={style}
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+      
+      {/* High-res original (for images only, loads on top) */}
+      {file.fileType === 'image' && highResUrl && lowResUrl && highResUrl !== lowResUrl && !imageError && (
+        <img
+          src={highResUrl}
+          alt={file.originalName}
+          className={`${className} absolute inset-0 z-20 transition-opacity duration-300 ${
+            highResLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={style}
+          onError={() => setHighResLoaded(false)} // Fall back to thumbnail on error
+        />
+      )}
+      
+      {/* Loading indicator - only show when no image is loaded */}
+      {!imageLoaded && !imageError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
+          <div className="animate-pulse bg-gray-300 rounded-full w-8 h-8"></div>
+        </div>
+      )}
+      
+      {/* Error state */}
+      {imageError && (
+        <div className="h-full w-64 flex items-center justify-center bg-gray-100">
+          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -22,18 +152,25 @@ export default function Dashboard() {
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [viewableFiles, setViewableFiles] = useState([]);
+  const [downloading, setDownloading] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
     if (status === 'loading') return; // Still loading
     if (!session) {
-      router.push('/login');
+      router.push('/');
       return;
     }
   }, [session, status, router]);
 
   // Fetch files from the API
-  const fetchFiles = async (pageNum = 1, reset = false) => {
+  const fetchFiles = useCallback(async (pageNum = 1, reset = false) => {
     try {
       if (pageNum === 1) {
         setLoading(true);
@@ -74,14 +211,38 @@ export default function Dashboard() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [filter, sortBy]); // Only recreate when filter or sortBy changes
 
   // Initial load
   useEffect(() => {
     if (session) {
       fetchFiles(1, true);
     }
-  }, [session, filter, sortBy]); // fetchFiles is stable, so this is safe
+  }, [session, fetchFiles]); // Now fetchFiles is stable
+
+  // Prevent tab from being discarded by keeping it active
+  useEffect(() => {
+    const keepAlive = () => {
+      // This prevents the tab from being discarded by Chrome
+      if (document.hidden) return;
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && session) {
+        // Tab became visible again, optionally refresh data if needed
+        console.log('Tab became visible');
+      }
+    };
+
+    // Keep the tab active
+    const interval = setInterval(keepAlive, 30000); // Every 30 seconds
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session]);
 
   // Load more files
   const loadMore = () => {
@@ -99,30 +260,416 @@ export default function Dashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Handle file selection
+  const toggleFileSelection = (fileId) => {
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all files in current view
+  const selectAllFiles = () => {
+    setSelectedFiles(new Set(files.map(file => file._id)));
+  };
+
+  // Clear all selections
+  const clearSelection = () => {
+    setSelectedFiles(new Set());
+    setIsSelectionMode(false);
+  };
+
+  // Delete selected files
+  const deleteSelectedFiles = async () => {
+    if (selectedFiles.size === 0) return;
+
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedFiles.size} file${selectedFiles.size !== 1 ? 's' : ''}? This action cannot be undone.`);
+    if (!confirmDelete) return;
+
+    setDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedFiles).map(async (fileId) => {
+        const response = await fetch(`/api/files?id=${fileId}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error(`Failed to delete file ${fileId}:`, errorData);
+          return { success: false, fileId, error: errorData.error || response.statusText };
+        }
+        
+        return { success: true, fileId };
+      });
+
+      const results = await Promise.all(deletePromises);
+      const failedDeletes = results.filter(result => !result.success);
+      const successfulDeletes = results.filter(result => result.success);
+
+      if (failedDeletes.length > 0) {
+        // Show detailed error information
+        const errorMessages = failedDeletes.map(fail => `File ID ${fail.fileId}: ${fail.error}`).join('\n');
+        console.error('Delete failures:', errorMessages);
+        
+        if (successfulDeletes.length > 0) {
+          // Some succeeded, some failed
+          setError(`Successfully deleted ${successfulDeletes.length} file${successfulDeletes.length !== 1 ? 's' : ''}, but failed to delete ${failedDeletes.length} file${failedDeletes.length !== 1 ? 's' : ''}. Check console for details.`);
+          // Remove only the successfully deleted files from state
+          const successfulIds = new Set(successfulDeletes.map(s => s.fileId));
+          setFiles(prevFiles => prevFiles.filter(file => !successfulIds.has(file._id)));
+          // Update selection to only include failed deletes
+          setSelectedFiles(new Set(failedDeletes.map(f => f.fileId)));
+        } else {
+          // All failed
+          throw new Error(`Failed to delete all ${failedDeletes.length} file${failedDeletes.length !== 1 ? 's' : ''}. Check console for details.`);
+        }
+      } else {
+        // All succeeded
+        setFiles(prevFiles => prevFiles.filter(file => !selectedFiles.has(file._id)));
+        clearSelection();
+      }
+    } catch (err) {
+      console.error('Error deleting files:', err);
+      setError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Select all files in a date group
+  const selectDateGroup = (groupFiles) => {
+    if (!isSelectionMode) {
+      setIsSelectionMode(true);
+    }
+    
+    const groupFileIds = groupFiles.map(file => file._id);
+    const allSelected = groupFileIds.every(id => selectedFiles.has(id));
+    
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      
+      if (allSelected) {
+        // Deselect all files in the group
+        groupFileIds.forEach(id => newSet.delete(id));
+      } else {
+        // Select all files in the group
+        groupFileIds.forEach(id => newSet.add(id));
+      }
+      
+      return newSet;
+    });
+  };
+
+  // Download single file
+  const downloadFile = async (file) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
+      const fileUrl = `${baseUrl}${file.filePath}`;
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = file.originalName;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      setError('Failed to download file');
+    }
+  };
+
+  // Download selected files as ZIP
+  const downloadSelectedFiles = async () => {
+    if (selectedFiles.size === 0) return;
+
+    setDownloading(true);
+    try {
+      const selectedFileIds = Array.from(selectedFiles);
+      
+      const response = await fetch('/api/files/download-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileIds: selectedFileIds }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to create ZIP file');
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      link.download = `files-${timestamp}.zip`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error downloading ZIP:', error);
+      setError(error.message || 'Failed to download files as ZIP');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Format dates client-side to avoid hydration mismatch
   const [formattedDates, setFormattedDates] = useState({});
+  const [groupedFiles, setGroupedFiles] = useState({});
+  
   useEffect(() => {
     const newFormatted = {};
+    const grouped = {};
+    
     files.forEach(file => {
       if (file.uploadedAt) {
-        newFormatted[file._id] = new Date(file.uploadedAt).toLocaleString('en-US', {
+        const date = new Date(file.uploadedAt);
+        const dateKey = date.toDateString(); // e.g., "Mon Aug 22 2025"
+        const formattedDate = date.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        // Store formatted date for individual files
+        newFormatted[file._id] = date.toLocaleString('en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
         });
+        
+        // Group files by date
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {
+            date: date,
+            formattedDate: formattedDate,
+            files: []
+          };
+        }
+        grouped[dateKey].files.push(file);
       }
     });
+    
+    // Sort groups by date (newest first)
+    const sortedGrouped = Object.keys(grouped)
+      .sort((a, b) => grouped[b].date - grouped[a].date)
+      .reduce((acc, key) => {
+        acc[key] = grouped[key];
+        return acc;
+      }, {});
+    
     setFormattedDates(newFormatted);
+    setGroupedFiles(sortedGrouped);
   }, [files]);
 
   // Handle file click (you can expand this to show file details or download)
   const handleFileClick = (file) => {
-    // For now, let's just log the file info
-    console.log('File clicked:', file);
-    // You could open a modal, navigate to a detail page, etc.
+    if (isSelectionMode) {
+      toggleFileSelection(file._id);
+    } else {
+      // Open viewer for images and videos
+      if (file.fileType === 'image' || file.fileType === 'video') {
+        // Get all viewable files (images and videos) in order
+        const viewable = files.filter(f => f.fileType === 'image' || f.fileType === 'video');
+        const index = viewable.findIndex(f => f._id === file._id);
+        setViewableFiles(viewable);
+        setCurrentFileIndex(index);
+        setViewerOpen(true);
+      } else {
+        // For other file types, just log for now
+        console.log('File clicked:', file);
+      }
+    }
+  };
+
+  // Navigate to previous file in viewer
+  const goToPrevious = () => {
+    setCurrentFileIndex(prev => prev > 0 ? prev - 1 : viewableFiles.length - 1);
+  };
+
+  // Navigate to next file in viewer
+  const goToNext = () => {
+    setCurrentFileIndex(prev => prev < viewableFiles.length - 1 ? prev + 1 : 0);
+  };
+
+  // Close viewer
+  const closeViewer = () => {
+    setViewerOpen(false);
+    setCurrentFileIndex(0);
+    setViewableFiles([]);
+  };
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (!viewerOpen) return;
+      
+      switch (e.key) {
+        case 'Escape':
+          closeViewer();
+          break;
+        case 'ArrowLeft':
+          goToPrevious();
+          break;
+        case 'ArrowRight':
+          goToNext();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [viewerOpen, currentFileIndex, viewableFiles.length]);
+
+  // Full-screen viewer component
+  const FileViewer = () => {
+    if (!viewerOpen || viewableFiles.length === 0) return null;
+    
+    const currentFile = viewableFiles[currentFileIndex];
+    const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
+    const fileUrl = `${baseUrl}${currentFile.filePath}`;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center">
+        {/* Close button */}
+        <button
+          onClick={closeViewer}
+          className="absolute top-4 right-4 z-60 text-white hover:text-gray-300 transition-colors"
+          title="Close (ESC)"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* Navigation arrows */}
+        {viewableFiles.length > 1 && (
+          <>
+            <button
+              onClick={goToPrevious}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 z-60 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
+              title="Previous (←)"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            
+            <button
+              onClick={goToNext}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 z-60 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
+              title="Next (→)"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* File counter */}
+        {viewableFiles.length > 1 && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 text-white bg-black bg-opacity-50 px-3 py-1 rounded-full text-sm">
+            {currentFileIndex + 1} of {viewableFiles.length}
+          </div>
+        )}
+
+        {/* File info */}
+        <div className="absolute bottom-4 left-4 right-4 z-60 text-white bg-black bg-opacity-50 p-4 rounded-lg">
+          <h3 className="text-lg font-medium truncate" title={currentFile.originalName}>
+            {currentFile.originalName}
+          </h3>
+          <div className="flex items-center gap-4 mt-2 text-sm text-gray-300">
+            <span>{formatFileSize(currentFile.size)}</span>
+            <span className="capitalize">{currentFile.fileType}</span>
+            {formattedDates[currentFile._id] && (
+              <span>{formattedDates[currentFile._id]}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="max-w-full max-h-full p-8 flex items-center justify-center">
+          {currentFile.fileType === 'image' ? (
+            <img
+              src={fileUrl}
+              alt={currentFile.originalName}
+              className="max-w-full max-h-full object-contain"
+              style={{ maxHeight: 'calc(100vh - 8rem)' }}
+            />
+          ) : currentFile.fileType === 'video' ? (
+            <video
+              src={fileUrl}
+              controls
+              className="max-w-full max-h-full"
+              style={{ maxHeight: 'calc(100vh - 8rem)' }}
+              autoPlay={false}
+            >
+              Your browser does not support the video tag.
+            </video>
+          ) : null}
+        </div>
+
+        {/* Thumbnail strip for navigation */}
+        {viewableFiles.length > 1 && (
+          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-60">
+            <div className="flex gap-2 bg-black bg-opacity-50 p-2 rounded-lg max-w-screen-lg overflow-x-auto">
+              {viewableFiles.map((file, index) => {
+                const thumbUrl = file.thumbnailUrl || (file.thumbnailPath ? `${baseUrl}${file.thumbnailPath}` : `${baseUrl}${file.filePath}`);
+                return (
+                  <button
+                    key={file._id}
+                    onClick={() => setCurrentFileIndex(index)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                      index === currentFileIndex 
+                        ? 'border-white shadow-lg' 
+                        : 'border-gray-600 hover:border-gray-400'
+                    }`}
+                  >
+                    {file.fileType === 'image' || file.fileType === 'video' ? (
+                      <img
+                        src={thumbUrl}
+                        alt={file.originalName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Get default icon based on file type
@@ -132,7 +679,7 @@ export default function Dashboard() {
     if (fileType === 'image') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </div>
@@ -140,7 +687,7 @@ export default function Dashboard() {
     } else if (fileType === 'video') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
         </div>
@@ -148,7 +695,7 @@ export default function Dashboard() {
     } else if (fileType === 'audio') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
           </svg>
         </div>
@@ -156,7 +703,7 @@ export default function Dashboard() {
     } else if (fileType === 'pdf') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-red-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12,2A3,3 0 0,1 15,5V7H15A2,2 0 0,1 17,9V19A2,2 0 0,1 15,21H5A2,2 0 0,1 3,19V9A2,2 0 0,1 5,7H9V5A3,3 0 0,1 12,2M12,4A1,1 0 0,0 11,5V7H13V5A1,1 0 0,0 12,4Z" />
           </svg>
         </div>
@@ -164,7 +711,7 @@ export default function Dashboard() {
     } else if (fileType === 'document') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
@@ -172,7 +719,7 @@ export default function Dashboard() {
     } else if (fileType === 'archive') {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
         </div>
@@ -180,7 +727,7 @@ export default function Dashboard() {
     } else {
       return (
         <div className={iconClass}>
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
@@ -207,13 +754,10 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Welcome back, {session.user?.name || session.user?.email}
-              </p>
             </div>
             <button
               onClick={() => router.push('/upload')}
@@ -226,7 +770,7 @@ export default function Dashboard() {
       </div>
 
       {/* Filters and Controls */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-4 py-6">
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-wrap items-center gap-4">
             {/* File Type Filter */}
@@ -267,9 +811,53 @@ export default function Dashboard() {
               </select>
             </div>
 
-            {/* File Count */}
-            <div className="ml-auto text-sm text-gray-500">
-              {files.length} files
+            {/* File Count and Selection Controls */}
+            <div className="ml-auto flex items-center gap-4">
+              {isSelectionMode ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600">
+                    {selectedFiles.size} selected
+                  </span>
+                  <button
+                    onClick={selectAllFiles}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={clearSelection}
+                    className="text-sm text-gray-600 hover:text-gray-700 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={deleteSelectedFiles}
+                    disabled={selectedFiles.size === 0 || deleting}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleting ? 'Deleting...' : `Delete ${selectedFiles.size > 0 ? `(${selectedFiles.size})` : ''}`}
+                  </button>
+                  <button
+                    onClick={downloadSelectedFiles}
+                    disabled={selectedFiles.size === 0 || downloading}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloading ? 'Creating ZIP...' : `Download ${selectedFiles.size > 0 ? `(${selectedFiles.size})` : ''}`}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    {files.length} files
+                  </span>
+                  <button
+                    onClick={() => setIsSelectionMode(true)}
+                    className="text-sm text-gray-600 hover:text-gray-700 font-medium"
+                  >
+                    Select Files
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -329,80 +917,180 @@ export default function Dashboard() {
         {/* Files Gallery */}
         {!loading && !error && files.length > 0 && (
           <div className="bg-white shadow-sm overflow-hidden">
-            <div className="flex flex-wrap gap-1 p-6">
-              {files.map((file) => (
-                <div
-                  key={file._id}
-                  onClick={() => handleFileClick(file)}
-                  className="group cursor-pointer bg-gray-50 overflow-hidden hover:shadow-md transition-shadow duration-200 flex flex-col"
-                >
-                  {/* Thumbnail */}
-                  <div className="h-32 flex-shrink-0">
-                    {file.thumbnailUrl || (file.fileType === 'image' || file.fileType === 'video') ? (
-                      <FileThumbnail 
-                        file={file} 
-                        size="h-full w-auto" 
-                        className=""
-                      />
-                    ) : (
-                      getDefaultIcon(file.fileType, file.mimeType)
-                    )}
-                  </div>
-                  
-                  {/* File Info */}
-                  <div className="p-2 min-w-0 flex-grow">
-                    <h3 className="text-xs font-medium text-gray-900 truncate" title={file.originalName}>
-                      {file.originalName}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatFileSize(file.size)}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {formattedDates[file._id] || ''}
-                    </p>
-                    <div className="mt-1">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                        file.fileType === 'image' ? 'bg-green-100 text-green-800' :
-                        file.fileType === 'video' ? 'bg-red-100 text-red-800' :
-                        file.fileType === 'audio' ? 'bg-purple-100 text-purple-800' :
-                        file.fileType === 'pdf' ? 'bg-red-100 text-red-800' :
-                        file.fileType === 'document' ? 'bg-blue-100 text-blue-800' :
-                        file.fileType === 'archive' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {file.fileType}
-                      </span>
+            <div className="p-6">
+              {Object.keys(groupedFiles).map((dateKey, groupIndex) => {
+                const group = groupedFiles[dateKey];
+                return (
+                  <div key={dateKey} className={groupIndex > 0 ? 'mt-8' : ''}>
+                    {/* Enhanced Date Header with Selection */}
+                    <div className="flex items-center mb-6 group">
+                      <div className="flex-grow border-t border-gray-300"></div>
+                      <div 
+                        onClick={() => selectDateGroup(group.files)}
+                        className="relative px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer"
+                      >
+                        {/* Selection indicator */}
+                        {(() => {
+                          const groupFileIds = group.files.map(f => f._id);
+                          const selectedInGroup = groupFileIds.filter(id => selectedFiles.has(id)).length;
+                          const allSelected = selectedInGroup === groupFileIds.length;
+                          const someSelected = selectedInGroup > 0;
+                          
+                          return (
+                            <>
+                              {/* Selection checkbox */}
+                              <div className="absolute -left-2 top-1/2 transform -translate-y-1/2">
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                                  allSelected 
+                                    ? 'bg-blue-600 border-blue-600' 
+                                    : someSelected
+                                    ? 'bg-blue-100 border-blue-400'
+                                    : 'bg-white border-gray-300 group-hover:border-blue-400'
+                                }`}>
+                                  {allSelected ? (
+                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : someSelected ? (
+                                    <div className="w-1.5 h-1.5 bg-blue-600 rounded-sm"></div>
+                                  ) : null}
+                                </div>
+                              </div>
+                              
+                              {/* Date content */}
+                              <div className="flex items-center gap-3">
+                                {/* Date text and file count */}
+                                <div className="text-left">
+                                  <h2 className="text-sm font-medium text-gray-700">
+                                    {group.formattedDate}
+                                  </h2>
+                                </div>
+                                
+                                {/* Delete action - only show when files are selected */}
+                                {someSelected && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Filter selected files to only those in this group
+                                      const groupSelectedIds = groupFileIds.filter(id => selectedFiles.has(id));
+                                      if (groupSelectedIds.length > 0) {
+                                        const confirmDelete = window.confirm(`Delete ${groupSelectedIds.length} selected file${groupSelectedIds.length !== 1 ? 's' : ''} from ${group.formattedDate}?`);
+                                        if (confirmDelete) {
+                                          // Set selected files to only this group's selected files and trigger delete
+                                          setSelectedFiles(new Set(groupSelectedIds));
+                                          setTimeout(() => deleteSelectedFiles(), 0);
+                                        }
+                                      }
+                                    }}
+                                    className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                    title={`Delete ${selectedInGroup} selected file${selectedInGroup !== 1 ? 's' : ''}`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex-grow border-t border-gray-300"></div>
                     </div>
-                  </div>
-                  
-                  {/* File Info */}
-                  {/* <div className="p-3">
-                    <h3 className="text-sm font-medium text-gray-900 truncate" title={file.originalName}>
-                      {file.originalName}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatFileSize(file.size)}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {formatDate(file.uploadedAt)}
-                    </p>
                     
-                    <div className="mt-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        file.fileType === 'image' ? 'bg-green-100 text-green-800' :
-                        file.fileType === 'video' ? 'bg-red-100 text-red-800' :
-                        file.fileType === 'audio' ? 'bg-purple-100 text-purple-800' :
-                        file.fileType === 'pdf' ? 'bg-red-100 text-red-800' :
-                        file.fileType === 'document' ? 'bg-blue-100 text-blue-800' :
-                        file.fileType === 'archive' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {file.fileType}
-                      </span>
+                    {/* Files for this date */}
+                    <div className="flex flex-wrap gap-1">
+                      {group.files.map((file) => (
+                        <div
+                          key={file._id}
+                          onClick={() => handleFileClick(file)}
+                          className="group cursor-pointer bg-gray-50 overflow-hidden hover:shadow-md transition-shadow duration-200 relative h-64 inline-block"
+                        >
+                          {/* Selection Checkbox */}
+                          {isSelectionMode && (
+                            <div className="absolute top-2 right-2 z-30">
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFileSelection(file._id);
+                                }}
+                                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                                  selectedFiles.has(file._id)
+                                    ? 'bg-blue-600 border-blue-600'
+                                    : 'bg-white border-gray-300 hover:border-blue-400'
+                                }`}
+                              >
+                                {selectedFiles.has(file._id) && (
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Thumbnail with aspect ratio maintained */}
+                          <div className="h-full relative">
+                            {file.thumbnailUrl || (file.fileType === 'image' || file.fileType === 'video') ? (
+                              <ProgressiveImage 
+                                file={file}
+                                className="h-full w-auto object-contain"
+                                style={{ maxWidth: 'none' }}
+                              />
+                            ) : (
+                              <div className="h-full w-64 flex items-center justify-center bg-gray-100">
+                                {getDefaultIcon(file.fileType, file.mimeType)}
+                              </div>
+                            )}
+                            
+                            {/* File Info Overlay - appears on hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col justify-end z-25">
+                              <div className="p-3 text-white">
+                                <h3 className="text-sm font-medium truncate drop-shadow-lg" title={file.originalName}>
+                                  {file.originalName}
+                                </h3>
+                                <p className="text-xs mt-1 opacity-90 drop-shadow-lg">
+                                  {formatFileSize(file.size)}
+                                </p>
+                                <p className="text-xs mt-1 opacity-75 drop-shadow-lg">
+                                  {formattedDates[file._id] || ''}
+                                </p>
+                                <div className="mt-2 flex items-center justify-between">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium drop-shadow-lg ${
+                                    file.fileType === 'image' ? 'bg-green-500 text-white' :
+                                    file.fileType === 'video' ? 'bg-red-500 text-white' :
+                                    file.fileType === 'audio' ? 'bg-purple-500 text-white' :
+                                    file.fileType === 'pdf' ? 'bg-red-600 text-white' :
+                                    file.fileType === 'document' ? 'bg-blue-500 text-white' :
+                                    file.fileType === 'archive' ? 'bg-yellow-600 text-white' :
+                                    'bg-gray-500 text-white'
+                                  }`}>
+                                    {file.fileType}
+                                  </span>
+                                  
+                                  {/* Download button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      downloadFile(file);
+                                    }}
+                                    className="ml-2 p-1 bg-blue-600 hover:bg-blue-700 rounded-full transition-colors"
+                                    title="Download file"
+                                  >
+                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div> */}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Load More Button */}
@@ -427,6 +1115,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Full-screen File Viewer */}
+      <FileViewer />
     </div>
   );
 }

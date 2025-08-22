@@ -22,6 +22,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    // Sanitize filename for HTTP headers
+    const sanitizeForHeader = (str) => {
+      if (!str) return '';
+      // Remove or replace characters that are not allowed in HTTP headers
+      return str.replace(/[^\w\-_.]/g, '_').substring(0, 255);
+    };
+
+    const sanitizedFileName = sanitizeForHeader(file.name);
+
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -44,7 +53,7 @@ export async function POST(request) {
             Body: thumbnail.buffer,
             ContentType: thumbnail.mimeType,
             Metadata: {
-              'original-file': file.name,
+              'original-file': sanitizedFileName,
               'user-id': session.user.id,
               'type': 'thumbnail',
               'width': thumbnail.width.toString(),
@@ -85,7 +94,7 @@ export async function POST(request) {
             Body: thumbnail.buffer,
             ContentType: thumbnail.mimeType,
             Metadata: {
-              'original-file': file.name,
+              'original-file': sanitizedFileName,
               'user-id': session.user.id,
               'type': 'video-thumbnail',
               'width': (thumbnailMetadata.width || 300).toString(),

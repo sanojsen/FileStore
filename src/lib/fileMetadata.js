@@ -3,6 +3,23 @@ import exifr from 'exifr';
 import { VideoProcessor } from './videoProcessor.js';
 
 export class FileMetadataExtractor {
+  // Helper function to convert GPS coordinates from DMS to decimal degrees
+  static convertGpsToDecimal(gpsArray, gpsRef) {
+    if (!Array.isArray(gpsArray) || gpsArray.length < 3) {
+      return null;
+    }
+    
+    const [degrees, minutes, seconds] = gpsArray;
+    let decimal = degrees + (minutes / 60) + (seconds / 3600);
+    
+    // Apply direction reference (S and W are negative)
+    if (gpsRef === 'S' || gpsRef === 'W') {
+      decimal = -decimal;
+    }
+    
+    return decimal;
+  }
+
   static async extractImageMetadata(buffer, mimeType) {
     try {
       const metadata = {};
@@ -42,11 +59,17 @@ export class FileMetadataExtractor {
           };
           
           if (exifData.GPSLatitude && exifData.GPSLongitude) {
-            metadata.location = {
-              latitude: exifData.GPSLatitude,
-              longitude: exifData.GPSLongitude,
-              altitude: exifData.GPSAltitude
-            };
+            // Convert GPS coordinates from degrees, minutes, seconds to decimal degrees
+            const latitude = this.convertGpsToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
+            const longitude = this.convertGpsToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
+            
+            if (latitude !== null && longitude !== null) {
+              metadata.location = {
+                latitude: latitude,
+                longitude: longitude,
+                altitude: exifData.GPSAltitude
+              };
+            }
           }
         }
       } catch (exifError) {

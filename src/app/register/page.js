@@ -63,7 +63,7 @@ export default function Register() {
 
       if (response.ok) {
         // Registration successful, redirect to login
-        router.push('/login?message=Registration successful. Please sign in.');
+        router.push('/?message=Registration successful. Please sign in.');
       } else {
         setError(data.error || 'Something went wrong');
       }
@@ -84,7 +84,7 @@ export default function Register() {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
-            <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+            <Link href="/" className="font-medium text-indigo-600 hover:text-indigo-500">
               sign in to your existing account
             </Link>
           </p>

@@ -19,6 +19,7 @@
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
     "jsonwebtoken": "^9.0.2",
+    "jszip": "^3.10.1",
     "mongodb": "^6.18.0",
     "mongoose": "^8.17.2",
     "multer": "^2.0.2",
