@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ClientThumbnailGenerator } from '../../lib/clientThumbnailGenerator';
@@ -276,75 +276,106 @@ export default function Upload() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow">
+      {/* Compact Navigation */}
+      <header className="bg-white shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="text-xl font-semibold">
-                FileStores
-              </Link>
+          <div className="flex justify-between items-center py-3">
+            {/* Left side - Logo and title */}
+            <div className="flex items-center space-x-2">
+              <div className="bg-blue-100 p-1.5 rounded-lg">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <div>
+                <Link href="/dashboard" className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors duration-200">
+                  FileStores
+                </Link>
+                <p className="text-xs text-gray-500">Upload files</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Hello, {session.user.name}</span>
+
+            {/* Right side - User info and actions */}
+            <div className="flex items-center space-x-2">
+              {/* User greeting */}
+              <div className="hidden sm:flex items-center space-x-2">
+                <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                  {session.user.email?.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-gray-700 text-sm font-medium">
+                  {session.user.name || session.user.email}
+                </span>
+              </div>
+
+              {/* Dashboard button */}
               <Link
                 href="/dashboard"
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1.5"
               >
-                Dashboard
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span className="hidden sm:inline">Dashboard</span>
               </Link>
+
+              {/* Logout button */}
+              <button
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="text-gray-600 hover:text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-lg text-sm transition-colors duration-200 flex items-center space-x-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </div>
-      </nav>
+      </header>
 
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Upload Files</h1>
-          <p className="mt-2 text-gray-600">
-            Upload your videos, photos, and documents securely to the cloud.
+        {/* Simple Header Section */}
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">
+            Upload Files
+          </h1>
+          <p className="text-gray-600">
+            Drag and drop files or click to browse
           </p>
         </div>
 
-        {/* Upload Area */}
+        {/* Simple Upload Area */}
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors duration-200 ${
             isDragging
-              ? 'border-indigo-500 bg-indigo-50'
-              : 'border-gray-300 hover:border-gray-400'
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
           }`}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
         >
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            stroke="currentColor"
-            fill="none"
-            viewBox="0 0 48 48"
-          >
-            <path
-              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <div className="mt-4">
-            <p className="text-lg text-gray-600">
-              <span className="font-medium text-indigo-600 cursor-pointer">
-                Click to upload
-              </span>{' '}
-              or drag and drop
+          <div className="flex flex-col items-center">
+            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            
+            <p className="text-lg font-medium text-gray-700 mb-2">
+              {isDragging ? 'Drop files here' : 'Choose files to upload'}
             </p>
-            <p className="text-sm text-gray-500 mt-2">
-              Videos, images, documents - uploads start automatically
+            
+            <p className="text-sm text-gray-500 mb-4">
+              Supports images, videos, and documents
             </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Maximum file size: 1GB per file
-            </p>
+
+            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+              Browse Files
+            </button>
           </div>
+          
           <input
             ref={fileInputRef}
             type="file"

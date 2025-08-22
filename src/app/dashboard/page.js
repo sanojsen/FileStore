@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
@@ -792,25 +792,64 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      {/* Compact Header */}
+      <header className="bg-white shadow-sm border-b border-gray-100">
         <div className="mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <div className="flex justify-between items-center py-3">
+            {/* Left side - Logo and title */}
+            <div className="flex items-center space-x-2">
+              <div className="bg-blue-100 p-1.5 rounded-lg">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  FileStores
+                </h1>
+                {session?.user && (
+                  <p className="text-xs text-gray-500">
+                    {session.user.email}
+                  </p>
+                )}
+              </div>
             </div>
-            <button
-              onClick={() => router.push('/upload')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors duration-200"
-            >
-              Upload Files
-            </button>
+
+            {/* Right side - Action buttons */}
+            <div className="flex items-center space-x-2">
+              {/* Upload button */}
+              <button
+                onClick={() => router.push('/upload')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+
+              {/* User avatar */}
+              <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
+                {session?.user?.email?.charAt(0).toUpperCase()}
+              </div>
+
+              {/* Logout button */}
+              <button
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="text-gray-600 hover:text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-lg text-sm transition-colors duration-200 flex items-center space-x-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Filters and Controls */}
-      <div className=" mx-auto px-4 sm:px-6 lg:px-4 py-6">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-wrap items-center gap-4">
             {/* File Type Filter */}
