@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ClientThumbnailGenerator } from '../../lib/clientThumbnailGenerator';
 
 export default function Upload() {
   const { data: session, status } = useSession();
@@ -140,26 +141,57 @@ export default function Upload() {
             throw new Error('Failed to upload to Cloudflare R2');
           }
 
-          setUploadProgress(prev => ({ ...prev, [progressIndex]: 50 }));
+          setUploadProgress(prev => ({ ...prev, [progressIndex]: 40 }));
 
           // Process metadata and create thumbnail for images/videos
           let extractedMetadata = {};
           let thumbnailCreated = false;
+          let clientThumbnail = null;
 
           // Add file system metadata (available from File object)
           if (file.lastModified) {
             extractedMetadata.fileSystemDate = new Date(file.lastModified).toISOString();
           }
 
+          // Create client-side thumbnail for images and videos
+          if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+            try {
+              console.log(`Generating client-side thumbnail for ${file.name}...`);
+              clientThumbnail = await ClientThumbnailGenerator.createThumbnail(file, 300);
+              
+              if (clientThumbnail && uploadInfo.thumbnailPresignedUrl) {
+                setUploadProgress(prev => ({ ...prev, [progressIndex]: 50 }));
+                
+                // Upload thumbnail to R2
+                const thumbnailUploadResponse = await fetch(uploadInfo.thumbnailPresignedUrl, {
+                  method: 'PUT',
+                  body: clientThumbnail.blob,
+                  headers: {
+                    'Content-Type': 'image/jpeg',
+                  },
+                });
+
+                if (thumbnailUploadResponse.ok) {
+                  thumbnailCreated = true;
+                  console.log(`Thumbnail uploaded successfully for ${file.name}`);
+                } else {
+                  console.warn(`Failed to upload thumbnail for ${file.name}`);
+                }
+              }
+            } catch (thumbnailError) {
+              console.warn('Failed to generate client thumbnail:', thumbnailError);
+            }
+          }
+
+              setUploadProgress(prev => ({ ...prev, [progressIndex]: 60 }));
+
+          // Extract EXIF metadata from server (lightweight - no thumbnails)
           if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
             try {
               const formData = new FormData();
               formData.append('file', file);
-              if (uploadInfo.thumbnailKey) {
-                formData.append('thumbnailKey', uploadInfo.thumbnailKey);
-              }
 
-              const metadataResponse = await fetch('/api/upload/process-metadata', {
+              const metadataResponse = await fetch('/api/upload/extract-metadata', {
                 method: 'POST',
                 body: formData,
               });
@@ -171,10 +203,9 @@ export default function Upload() {
                   ...extractedMetadata, 
                   ...(metadataResult.metadata || {})
                 };
-                thumbnailCreated = !!metadataResult.thumbnail;
               }
             } catch (metadataError) {
-              console.warn('Failed to extract metadata:', metadataError);
+              console.warn('Failed to extract server metadata:', metadataError);
             }
           }
 
