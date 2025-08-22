@@ -1,4 +1,5 @@
-const CACHE_NAME = 'filestores-v1';
+const APP_VERSION = '0.1.1'; // This should match package.json version
+const CACHE_NAME = `filestores-v${APP_VERSION}`;
 const STATIC_CACHE_URLS = [
   '/',
   '/dashboard',
@@ -30,12 +31,27 @@ self.addEventListener('activate', (event) => {
   console.log('Service Worker: Activate');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      const oldCaches = cacheNames.filter(cache => cache !== CACHE_NAME);
+      
+      if (oldCaches.length > 0) {
+        console.log('Service Worker: Found old caches, notifying clients of update');
+        
+        // Notify all clients about the update
+        self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'UPDATE_AVAILABLE',
+              version: APP_VERSION,
+              cacheName: CACHE_NAME
+            });
+          });
+        });
+      }
+      
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('Service Worker: Deleting old cache', cache);
-            return caches.delete(cache);
-          }
+        oldCaches.map((cache) => {
+          console.log('Service Worker: Deleting old cache', cache);
+          return caches.delete(cache);
         })
       );
     })
@@ -165,5 +181,44 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(
       clients.openWindow('/dashboard')
     );
+  }
+});
+
+// Handle messages from clients
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'CHECK_VERSION') {
+    console.log('Service Worker: Version check requested');
+    event.ports[0].postMessage({ 
+      success: true, 
+      version: APP_VERSION,
+      cacheName: CACHE_NAME
+    });
+    return;
+  }
+  
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('Service Worker: Clearing all caches');
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            console.log('Service Worker: Deleting cache', cacheName);
+            return caches.delete(cacheName);
+          })
+        );
+      }).then(() => {
+        // Notify the client that cache is cleared
+        event.ports[0].postMessage({ success: true });
+        console.log('Service Worker: All caches cleared successfully');
+      }).catch((error) => {
+        console.error('Service Worker: Error clearing caches', error);
+        event.ports[0].postMessage({ success: false, error: error.message });
+      })
+    );
+  }
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('Service Worker: Skipping waiting');
+    self.skipWaiting();
   }
 });

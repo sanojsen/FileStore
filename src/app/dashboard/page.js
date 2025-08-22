@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+
 // Use dynamic import with no SSR to avoid bundling issues
 const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
   ssr: false,
@@ -12,6 +13,11 @@ const LazyWrapper = dynamic(() => import('../../components/LazyWrapper'), {
   ssr: false,
   loading: () => <div className="bg-gray-100 animate-pulse rounded h-32"></div>
 });
+const CacheManager = dynamic(() => import('../../components/CacheManager'), {
+  ssr: false,
+  loading: () => null
+});
+
 // Progressive Image Component for better loading experience
 const ProgressiveImage = ({ file, className, style }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -132,6 +138,7 @@ export default function Dashboard() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [viewableFiles, setViewableFiles] = useState([]);
+  const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   // Refs for infinite scroll
   const loadMoreRef = useRef(null);
@@ -498,6 +505,18 @@ export default function Dashboard() {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [viewerOpen, currentFileIndex, viewableFiles.length, goToNext, goToPrevious]);
+
+  // Close cache dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (cacheMenuOpen && !event.target.closest('[data-cache-dropdown]')) {
+        setCacheMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [cacheMenuOpen]);
   // Full-screen viewer component
   const FileViewer = () => {
     if (!viewerOpen || viewableFiles.length === 0) return null;
@@ -727,6 +746,27 @@ export default function Dashboard() {
                 </svg>
                 <span className="hidden sm:inline">Upload</span>
               </button>
+              {/* Cache Manager dropdown */}
+              <div className="relative" data-cache-dropdown>
+                <button
+                  onClick={() => setCacheMenuOpen(!cacheMenuOpen)}
+                  className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-sm transition-colors duration-200 flex items-center space-x-1"
+                  title="PWA Cache Management"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.79 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.79 4 8 4s8-1.79 8-4M4 7c0-2.21 3.79-4 8-4s8 1.79 8 4" />
+                  </svg>
+                  <span className="hidden md:inline">Cache</span>
+                </button>
+                {/* Cache Manager dropdown content */}
+                {cacheMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 min-w-[300px]">
+                    <div className="p-4">
+                      <CacheManager />
+                    </div>
+                  </div>
+                )}
+              </div>
               {/* User avatar */}
               <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
                 {session?.user?.email?.charAt(0).toUpperCase()}
