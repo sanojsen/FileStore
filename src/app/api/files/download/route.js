@@ -4,7 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { connectToDatabase } from '../../../../lib/mongodb';
 import File from '../../../../models/File';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import r2Client from '../../../../lib/r2Client';
+import r2Client from '../../../../lib/r2';
 export async function GET(request) {
   try {
     // Check authentication
@@ -108,4 +108,4 @@ export async function GET(request) {
       { status: 500 }
     );
   }
-}
+}

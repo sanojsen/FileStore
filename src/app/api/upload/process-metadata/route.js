@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { FileMetadataExtractor } from '../../../../lib/fileMetadata';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import r2Client from '../../../../lib/r2Client';
+import r2Client from '../../../../lib/r2';
 import sharp from 'sharp';
 export async function POST(request) {
   try {
@@ -103,4 +103,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+}

@@ -5,8 +5,8 @@ require('dotenv').config({ path: '.env.local' });
 // Configure R2 client
 const r2 = new AWS.S3({
   endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  accessKeyId: process.env.R2_ACCESS_KEY_ID,
-  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  accessKeyId: process.env.CLOUDFLARE_ACCESS_KEY_ID,
+  secretAccessKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY,
   region: 'auto',
   signatureVersion: 'v4',
 });
@@ -44,7 +44,7 @@ async function clearDatabase() {
 
 async function clearR2Bucket() {
   try {
-    const bucketName = process.env.R2_BUCKET_NAME;
+    const bucketName = process.env.CLOUDFLARE_BUCKET_NAME;
     console.log(`🗑️  Clearing R2 bucket: ${bucketName}...`);
     
     let totalDeleted = 0;

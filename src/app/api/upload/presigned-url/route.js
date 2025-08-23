@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import r2Client from '../../../../lib/r2Client';
+import r2Client from '../../../../lib/r2';
 import { v4 as uuidv4 } from 'uuid';
 export async function POST(request) {
   try {
@@ -106,4 +106,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+}
