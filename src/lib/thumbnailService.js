@@ -67,37 +67,88 @@ export class ThumbnailService {
     try {
       // Handle HEIC files first (they need special conversion)
       if (this.isHEIC(file)) {
-        console.log('� HEIC file detected, starting conversion:', file.name);
-        return await this.createHEICThumbnail(file, maxSize);
+        try {
+          return await this.createHEICThumbnail(file, maxSize);
+        } catch (heicError) {
+          console.warn('HEIC thumbnail failed, creating placeholder:', heicError.message);
+          return this.createPlaceholderThumbnail(file, maxSize);
+        }
       }
 
       // Handle standard image formats with client-side processing
       if (this.canProcessClientSide(file)) {
-        console.log('�️ Creating client-side thumbnail for:', file.name);
-        return await this.createClientThumbnail(file, maxSize);
+        try {
+          return await this.createClientThumbnail(file, maxSize);
+        } catch (clientError) {
+          console.warn('Client thumbnail failed, trying FileReader approach:', clientError.message);
+          try {
+            return await this.createThumbnailWithFileReader(file, maxSize);
+          } catch (fileReaderError) {
+            console.warn('FileReader thumbnail also failed, creating placeholder:', fileReaderError.message);
+            return this.createPlaceholderThumbnail(file, maxSize);
+          }
+        }
       }
 
-      // For other unsupported formats, try client-side anyway as fallback
-      console.log('⚠️ Attempting client-side thumbnail for unsupported format:', file.type);
-      return await this.createClientThumbnail(file, maxSize);
+      // For non-image files, create placeholder
+      return this.createPlaceholderThumbnail(file, maxSize);
 
     } catch (error) {
       console.error('❌ Thumbnail creation failed:', error.message);
-      return null;
+      // Always return a placeholder rather than null
+      return this.createPlaceholderThumbnail(file, maxSize);
     }
   }
 
   /**
-   * Create client-side thumbnail using Canvas
+   * Create client-side thumbnail using Canvas with enhanced error handling
    */
   static async createClientThumbnail(file, maxSize) {
     return new Promise((resolve, reject) => {
+      // Validate file first
+      if (!file || !file.type || !file.type.startsWith('image/')) {
+        reject(new Error(`Invalid image file: ${file?.type || 'unknown type'}`));
+        return;
+      }
+
+      // Check file size (limit to reasonable size for client processing)
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        reject(new Error(`Image file too large: ${(file.size / 1024 / 1024).toFixed(1)}MB`));
+        return;
+      }
+
+      // Additional validation - check if file is actually readable
+      if (!file.size || file.size === 0) {
+        reject(new Error(`Invalid file size: ${file.size} bytes`));
+        return;
+      }
+
       const img = new Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
+      let objectUrl = null;
+
+      // Set up timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        reject(new Error(`Image loading timeout after 10 seconds for ${file.name}`));
+      }, 10000);
 
       img.onload = () => {
+        clearTimeout(timeout);
         try {
+          // Clean up object URL immediately
+          if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+          }
+          
+          // Validate image dimensions
+          if (img.width === 0 || img.height === 0) {
+            reject(new Error(`Invalid image dimensions: ${img.width}x${img.height}`));
+            return;
+          }
+          
           // Calculate dimensions
           const { width: newWidth, height: newHeight } = this.calculateDimensions(
             img.width, 
@@ -126,12 +177,106 @@ export class ThumbnailService {
             }
           }, 'image/jpeg', 0.85);
         } catch (error) {
-          reject(error);
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          reject(new Error(`Canvas processing failed: ${error.message}`));
         }
       };
 
-      img.onerror = () => reject(new Error('Failed to load image for thumbnail'));
-      img.src = URL.createObjectURL(file);
+      img.onerror = (event) => {
+        clearTimeout(timeout);
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+        }
+        
+        // More detailed error information
+        const errorDetails = [];
+        errorDetails.push(`File: ${file.name}`);
+        errorDetails.push(`Type: ${file.type}`);
+        errorDetails.push(`Size: ${(file.size / 1024).toFixed(1)}KB`);
+        
+        if (event && event.type) {
+          errorDetails.push(`Event: ${event.type}`);
+        }
+        
+        reject(new Error(`Failed to load image for thumbnail - ${errorDetails.join(', ')}`));
+      };
+
+      try {
+        // Create object URL with error handling
+        objectUrl = URL.createObjectURL(file);
+        img.src = objectUrl;
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to create object URL: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Alternative thumbnail creation using FileReader (fallback method)
+   */
+  static async createThumbnailWithFileReader(file, maxSize) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        img.onload = () => {
+          try {
+            // Validate image dimensions
+            if (img.width === 0 || img.height === 0) {
+              reject(new Error(`Invalid image dimensions: ${img.width}x${img.height}`));
+              return;
+            }
+            
+            // Calculate dimensions
+            const { width: newWidth, height: newHeight } = this.calculateDimensions(
+              img.width, 
+              img.height, 
+              maxSize
+            );
+
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+            // Draw image
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+            // Convert to blob
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve({
+                  blob,
+                  width: newWidth,
+                  height: newHeight,
+                  mimeType: 'image/jpeg',
+                  source: 'client_filereader'
+                });
+              } else {
+                reject(new Error('Failed to create thumbnail blob with FileReader'));
+              }
+            }, 'image/jpeg', 0.85);
+          } catch (error) {
+            reject(new Error(`Canvas processing failed with FileReader: ${error.message}`));
+          }
+        };
+
+        img.onerror = () => {
+          reject(new Error(`Failed to load image with FileReader: ${file.name}`));
+        };
+
+        img.src = e.target.result;
+      };
+
+      reader.onerror = () => {
+        reject(new Error(`FileReader failed to read file: ${file.name}`));
+      };
+
+      reader.readAsDataURL(file);
     });
   }
 
@@ -140,34 +285,26 @@ export class ThumbnailService {
    */
   static async createHEICThumbnail(file, maxSize) {
     try {
-      console.log('📸 HEIC file detected:', file.name, `(${(file.size / 1024 / 1024).toFixed(1)}MB)`);
-
       // Check if file is too large for client processing
       if (file.size > 25 * 1024 * 1024) { // 25MB limit
-        console.log('📁 File too large for HEIC conversion, creating placeholder');
         return this.createPlaceholderThumbnail(file, maxSize);
       }
 
       // Check if HEIC conversion is supported
       const isSupported = await HEICConverter.isSupported();
       if (!isSupported) {
-        console.log('⚠️ HEIC conversion not supported, creating placeholder');
         return this.createPlaceholderThumbnail(file, maxSize);
       }
-
-      console.log('🔄 Starting HEIC to JPEG conversion...');
 
       try {
         // Convert HEIC to JPEG file
         const jpegFile = await HEICConverter.convertToJPEGFile(file, 0.85);
-        console.log('✅ HEIC converted successfully');
 
         // Generate thumbnail from the converted JPEG
         const thumbnail = await this.createClientThumbnail(jpegFile, maxSize);
         
         if (thumbnail) {
           thumbnail.source = 'heic_converted';
-          console.log('✅ HEIC thumbnail created successfully');
           return thumbnail;
         } else {
           throw new Error('Failed to create thumbnail from converted JPEG');
@@ -175,7 +312,7 @@ export class ThumbnailService {
 
       } catch (conversionError) {
         console.error('❌ HEIC conversion failed:', conversionError.message);
-        console.log('🎨 Creating placeholder thumbnail for HEIC file');
+        // Creating placeholder thumbnail for HEIC file
         return this.createPlaceholderThumbnail(file, maxSize);
       }
 

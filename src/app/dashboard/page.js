@@ -1,8 +1,10 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import React from 'react';
+import requestManager from '../../lib/requestManager';
 
 // Use dynamic import with no SSR to avoid bundling issues
 const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
@@ -13,13 +15,9 @@ const LazyWrapper = dynamic(() => import('../../components/LazyWrapper'), {
   ssr: false,
   loading: () => <div className="bg-gray-100 animate-pulse rounded h-32"></div>
 });
-const CacheManager = dynamic(() => import('../../components/CacheManager'), {
-  ssr: false,
-  loading: () => null
-});
 
 // Progressive Image Component for better loading experience
-const ProgressiveImage = ({ file, className, style }) => {
+const ProgressiveImage = React.memo(({ file, className, style }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [highResLoaded, setHighResLoaded] = useState(false);
   const [imageWidth, setImageWidth] = useState('auto');
@@ -120,10 +118,29 @@ const ProgressiveImage = ({ file, className, style }) => {
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if the file ID changes or if critical props change
+  return prevProps.file._id === nextProps.file._id && 
+         prevProps.file.thumbnailUrl === nextProps.file.thumbnailUrl &&
+         prevProps.file.filePath === nextProps.file.filePath &&
+         prevProps.file.fileType === nextProps.file.fileType &&
+         prevProps.className === nextProps.className;
+});
+
+ProgressiveImage.displayName = 'ProgressiveImage';
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  
+  // Debug session changes - throttle to reduce noise
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      console.log(`[Dashboard] Session changed - Status: ${status}, Session ID: ${session?.user?.id || 'none'}`);
+    }, 100);
+    return () => clearTimeout(timeoutId);
+  }, [session?.user?.id, status]); // Only track essential session changes
+  
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -138,11 +155,13 @@ export default function Dashboard() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [viewableFiles, setViewableFiles] = useState([]);
-  const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  // Refs for infinite scroll
+  // Refs for infinite scroll and preventing multiple setups
   const loadMoreRef = useRef(null);
   const observerRef = useRef(null);
+  const isInitializedRef = useRef(false);
+  const fetchInProgressRef = useRef(false);
+  const lastFetchParamsRef = useRef(null);
   // Redirect to login if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -150,86 +169,153 @@ export default function Dashboard() {
       return;
     }
   }, [status, router]);
-  // Fetch files from the API
+  // Stable reference to current filter and sortBy
+  const filtersRef = useRef({ filter, sortBy });
+  filtersRef.current = { filter, sortBy };
+  
+  // Stable reference to current files array
+  const filesRef = useRef(files);
+  filesRef.current = files;
+
+  // Fetch files from the API using global request manager
   const fetchFiles = useCallback(async (pageNum = 1, reset = false) => {
+    // Create a unique key for this fetch request
+    const fetchKey = `${pageNum}-${reset}-${filtersRef.current.filter}-${filtersRef.current.sortBy}`;
+    
+    // Prevent multiple simultaneous fetches of the same type
+    if (fetchInProgressRef.current && !reset) {
+      console.log('[Dashboard] Fetch already in progress, skipping');
+      return;
+    }
+    
+    // Prevent duplicate fetches with same parameters
+    if (lastFetchParamsRef.current === fetchKey && !reset) {
+      console.log('[Dashboard] Same fetch parameters, skipping duplicate');
+      return;
+    }
+    
     try {
+      fetchInProgressRef.current = true;
+      lastFetchParamsRef.current = fetchKey;
+      
       if (pageNum === 1) {
         setLoading(true);
         setError(null);
       } else {
         setLoadingMore(true);
       }
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: '12',
-        sortBy: sortBy
-      });
-      if (filter !== 'all') {
-        params.append('type', filter);
-      }
-      const response = await fetch(`/api/files?${params}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch files');
-      }
+      
+      console.log(`[Dashboard] Starting fetch - Page: ${pageNum}, Reset: ${reset}, Filter: ${filtersRef.current.filter}, Sort: ${filtersRef.current.sortBy}`);
+      
+      const data = await requestManager.fetchFiles(pageNum, filtersRef.current.filter, filtersRef.current.sortBy);
+      
       if (reset || pageNum === 1) {
-        setFiles(data.files);
+        // Ensure even initial data doesn't have duplicates
+        const uniqueFiles = data.files.filter((file, index, self) => 
+          index === self.findIndex(f => f._id === file._id)
+        );
+        console.log(`[Dashboard] Setting ${uniqueFiles.length} files (reset/initial)`);
+        setFiles(uniqueFiles);
       } else {
-        setFiles(prev => [...prev, ...data.files]);
+        // Prevent duplicates by creating a Map of unique files by ID
+        setFiles(prev => {
+          const existingIds = new Set(prev.map(f => f._id));
+          const newUniqueFiles = data.files.filter(f => !existingIds.has(f._id));
+          console.log(`[Dashboard] Adding ${newUniqueFiles.length} new files to existing ${prev.length}`);
+          return [...prev, ...newUniqueFiles];
+        });
       }
       setHasMore(data.hasMore);
       setPage(pageNum);
+      
     } catch (err) {
       console.error('Error fetching files:', err);
       setError(err.message);
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      fetchInProgressRef.current = false;
+      // Clear the fetch key after a delay to allow for fresh fetches
+      setTimeout(() => {
+        if (lastFetchParamsRef.current === fetchKey) {
+          lastFetchParamsRef.current = null;
+        }
+      }, 1000);
     }
-  }, [filter, sortBy]);
+  }, []);
   // Load more files (defined before useEffect that uses it)
   const loadMore = useCallback(() => {
-    if (hasMore && !loadingMore && !loading) {
+    if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
       fetchFiles(page + 1, false);
     }
-  }, [hasMore, loadingMore, loading, fetchFiles, page]);
+  }, [hasMore, loadingMore, loading, page, fetchFiles]);
   // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
+    console.log(`[Dashboard] useEffect triggered - Status: ${status}, Session: ${!!session}, Filter: ${filter}, Sort: ${sortBy}, Initialized: ${isInitializedRef.current}`);
+    
     if (status === 'authenticated' && session) {
-      fetchFiles(1, true);
+      // Create a unique key for this effect
+      const effectKey = `${filter}-${sortBy}`;
+      
+      // Reset initialization flag when filter/sort changes
+      if (isInitializedRef.current) {
+        isInitializedRef.current = false;
+      }
+      
+      // Debounce rapid changes with increased delay
+      const timeoutId = setTimeout(() => {
+        if (!fetchInProgressRef.current) {
+          isInitializedRef.current = true;
+          fetchFiles(1, true);
+        }
+      }, 300); // Increased debounce to 300ms
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [status, filter, sortBy]); // Use filter and sortBy instead of fetchFiles
-  // Prevent tab from being discarded by keeping it active
+  }, [status, session?.user?.id, filter, sortBy, fetchFiles]); // Use session.user.id instead of full session
+  // Handle visibility change for data refresh
   useEffect(() => {
-    const keepAlive = () => {
-      // This prevents the tab from being discarded by Chrome
-      if (document.hidden) return;
-    };
     const handleVisibilityChange = () => {
-      if (!document.hidden && session) {
+      if (!document.hidden && session && status === 'authenticated') {
         // Tab became visible again, optionally refresh data if needed
+        // Only refresh if it's been more than 5 minutes since last fetch
+        const lastFetch = sessionStorage.getItem('lastFetchTime');
+        const now = Date.now();
+        if (!lastFetch || (now - parseInt(lastFetch)) > 5 * 60 * 1000) {
+          fetchFiles(1, true);
+          sessionStorage.setItem('lastFetchTime', now.toString());
+        }
       }
     };
-    // Keep the tab active
-    const interval = setInterval(keepAlive, 30000); // Every 30 seconds
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session]);
+  }, [session, status, fetchFiles]);
   // Intersection Observer for infinite scroll
   useEffect(() => {
+    // Prevent multiple observers
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+    
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMore();
+        if (entry.isIntersecting && hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
+          console.log('[Dashboard] Loading more files via intersection observer');
+          // Add a small delay to prevent rapid successive calls
+          setTimeout(() => {
+            if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
+              loadMore();
+            }
+          }, 100);
         }
       },
       {
         root: null,
-        rootMargin: '100px', // Start loading 100px before reaching the target
+        rootMargin: '200px', // Increased from 100px to prevent premature loading
         threshold: 0.1
       }
     );
@@ -252,7 +338,7 @@ export default function Dashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
   // Handle file selection
-  const toggleFileSelection = (fileId) => {
+  const toggleFileSelection = useCallback((fileId) => {
     setSelectedFiles(prev => {
       const newSet = new Set(prev);
       if (newSet.has(fileId)) {
@@ -262,16 +348,17 @@ export default function Dashboard() {
       }
       return newSet;
     });
-  };
+  }, []);
   // Select all files in current view
-  const selectAllFiles = () => {
+  const selectAllFiles = useCallback(() => {
     setSelectedFiles(new Set(files.map(file => file._id)));
-  };
+  }, [files]);
+  
   // Clear all selections
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     setSelectedFiles(new Set());
     setIsSelectionMode(false);
-  };
+  }, []);
   // Delete selected files
   const deleteSelectedFiles = async () => {
     if (selectedFiles.size === 0) return;
@@ -322,7 +409,7 @@ export default function Dashboard() {
     }
   };
   // Select all files in a date group
-  const selectDateGroup = (groupFiles) => {
+  const selectDateGroup = useCallback((groupFiles) => {
     if (!isSelectionMode) {
       setIsSelectionMode(true);
     }
@@ -339,9 +426,9 @@ export default function Dashboard() {
       }
       return newSet;
     });
-  };
+  }, [isSelectionMode, selectedFiles]);
   // Download single file
-  const downloadFile = async (file) => {
+  const downloadFile = useCallback(async (file) => {
     try {
       // Use the dedicated download API endpoint with proper credentials
       const response = await fetch(`/api/files/download?id=${file._id}`, {
@@ -368,7 +455,7 @@ export default function Dashboard() {
       console.error('Download error:', error);
       setError(`Failed to download ${file.originalName}: ${error.message}`);
     }
-  };
+  }, []);
   // Download selected files as ZIP
   const downloadSelectedFiles = async () => {
     if (selectedFiles.size === 0) return;
@@ -410,10 +497,26 @@ export default function Dashboard() {
   // Format dates client-side to avoid hydration mismatch
   const [formattedDates, setFormattedDates] = useState({});
   const [groupedFiles, setGroupedFiles] = useState({});
+  
+  // Separate useEffect for computing grouped files and formatted dates
   useEffect(() => {
+    console.log('[Dashboard] Computing grouped files from', files.length, 'files');
+    
+    // First, deduplicate the files array completely
+    const uniqueFiles = files.filter((file, index, self) => 
+      index === self.findIndex(f => f._id === file._id)
+    );
+    
+    // Debug: Check for duplicates
+    const duplicatesRemoved = files.length - uniqueFiles.length;
+    if (duplicatesRemoved > 0) {
+      console.warn(`Removed ${duplicatesRemoved} duplicate files during grouping`);
+    }
+    
     const newFormatted = {};
     const grouped = {};
-    files.forEach(file => {
+    
+    uniqueFiles.forEach(file => {
       // Use createdAt if available, otherwise fall back to uploadedAt
       const dateToUse = file.createdAt || file.uploadedAt;
       if (dateToUse) {
@@ -425,6 +528,7 @@ export default function Dashboard() {
           month: 'long',
           day: 'numeric'
         });
+        
         // Store formatted date for individual files
         newFormatted[file._id] = date.toLocaleString('en-US', {
           year: 'numeric',
@@ -433,6 +537,7 @@ export default function Dashboard() {
           hour: '2-digit',
           minute: '2-digit'
         });
+        
         // Group files by date
         if (!grouped[dateKey]) {
           grouped[dateKey] = {
@@ -441,9 +546,14 @@ export default function Dashboard() {
             files: []
           };
         }
-        grouped[dateKey].files.push(file);
+        
+        // Check if file already exists in this group to prevent duplicates
+        if (!grouped[dateKey].files.some(f => f._id === file._id)) {
+          grouped[dateKey].files.push(file);
+        }
       }
     });
+    
     // Sort groups by date (newest first)
     const sortedGrouped = Object.keys(grouped)
       .sort((a, b) => grouped[b].date - grouped[a].date)
@@ -451,41 +561,50 @@ export default function Dashboard() {
         acc[key] = grouped[key];
         return acc;
       }, {});
-    setFormattedDates(newFormatted);
-    setGroupedFiles(sortedGrouped);
+    
+    // Only update state if the content has actually changed
+    setFormattedDates(prev => {
+      const hasChanged = JSON.stringify(prev) !== JSON.stringify(newFormatted);
+      return hasChanged ? newFormatted : prev;
+    });
+    
+    setGroupedFiles(prev => {
+      const hasChanged = JSON.stringify(prev) !== JSON.stringify(sortedGrouped);
+      return hasChanged ? sortedGrouped : prev;
+    });
   }, [files]);
   // Handle file click (you can expand this to show file details or download)
-  const handleFileClick = (file) => {
+  const handleFileClick = useCallback((file) => {
     if (isSelectionMode) {
       toggleFileSelection(file._id);
     } else {
       // Open viewer for images and videos
       if (file.fileType === 'image' || file.fileType === 'video') {
         // Get all viewable files (images and videos) in order
-        const viewable = files.filter(f => f.fileType === 'image' || f.fileType === 'video');
+        const viewable = filesRef.current.filter(f => f.fileType === 'image' || f.fileType === 'video');
         const index = viewable.findIndex(f => f._id === file._id);
         setViewableFiles(viewable);
         setCurrentFileIndex(index);
         setViewerOpen(true);
-      } else {
-        // For other file types, just log for now
       }
     }
-  };
+  }, [isSelectionMode, toggleFileSelection]); // Removed files dependency
   // Navigate to previous file in viewer
-  const goToPrevious = () => {
+  const goToPrevious = useCallback(() => {
     setCurrentFileIndex(prev => prev > 0 ? prev - 1 : viewableFiles.length - 1);
-  };
+  }, [viewableFiles.length]);
+
   // Navigate to next file in viewer
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     setCurrentFileIndex(prev => prev < viewableFiles.length - 1 ? prev + 1 : 0);
-  };
+  }, [viewableFiles.length]);
+
   // Close viewer
-  const closeViewer = () => {
+  const closeViewer = useCallback(() => {
     setViewerOpen(false);
     setCurrentFileIndex(0);
     setViewableFiles([]);
-  };
+  }, []);
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -504,19 +623,8 @@ export default function Dashboard() {
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [viewerOpen, currentFileIndex, viewableFiles.length, goToNext, goToPrevious]);
+  }, [viewerOpen, closeViewer, goToPrevious, goToNext]);
 
-  // Close cache dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (cacheMenuOpen && !event.target.closest('[data-cache-dropdown]')) {
-        setCacheMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [cacheMenuOpen]);
   // Full-screen viewer component
   const FileViewer = () => {
     if (!viewerOpen || viewableFiles.length === 0) return null;
@@ -746,27 +854,6 @@ export default function Dashboard() {
                 </svg>
                 <span className="hidden sm:inline">Upload</span>
               </button>
-              {/* Cache Manager dropdown */}
-              <div className="relative" data-cache-dropdown>
-                <button
-                  onClick={() => setCacheMenuOpen(!cacheMenuOpen)}
-                  className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-sm transition-colors duration-200 flex items-center space-x-1"
-                  title="PWA Cache Management"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.79 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.79 4 8 4s8-1.79 8-4M4 7c0-2.21 3.79-4 8-4s8 1.79 8 4" />
-                  </svg>
-                  <span className="hidden md:inline">Cache</span>
-                </button>
-                {/* Cache Manager dropdown content */}
-                {cacheMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 min-w-[300px]">
-                    <div className="p-4">
-                      <CacheManager />
-                    </div>
-                  </div>
-                )}
-              </div>
               {/* User avatar */}
               <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 text-xs font-medium">
                 {session?.user?.email?.charAt(0).toUpperCase()}
@@ -931,6 +1018,14 @@ export default function Dashboard() {
             <div>
               {Object.keys(groupedFiles).map((dateKey, groupIndex) => {
                 const group = groupedFiles[dateKey];
+                
+                // Debug: Check for duplicate files in this group
+                const fileIds = group.files.map(f => f._id);
+                const uniqueFileIds = [...new Set(fileIds)];
+                if (fileIds.length !== uniqueFileIds.length) {
+                  console.error(`Duplicate files found in group ${dateKey}:`, fileIds);
+                }
+                
                 return (
                   <div key={dateKey} className={groupIndex > 0 ? 'mt-8' : ''}>
                     {/* Enhanced Date Header with Selection */}

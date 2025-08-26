@@ -38,16 +38,16 @@ class HEICConverter {
     const strategies = [
       // Strategy 1: Standard dynamic import
       async () => {
-        const module = await import('heic2any');
-        return module.default || module;
+        const heicModule = await import('heic2any');
+        return heicModule.default || heicModule;
       },
       
       // Strategy 2: Try accessing as function directly
       async () => {
-        const module = await import('heic2any');
-        if (typeof module === 'function') return module;
-        if (typeof module.default === 'function') return module.default;
-        if (typeof module.heic2any === 'function') return module.heic2any;
+        const heicModule = await import('heic2any');
+        if (typeof heicModule === 'function') return heicModule;
+        if (typeof heicModule.default === 'function') return heicModule.default;
+        if (typeof heicModule.heic2any === 'function') return heicModule.heic2any;
         throw new Error('No function found in module');
       },
 
@@ -65,11 +65,9 @@ class HEICConverter {
 
     for (let i = 0; i < strategies.length; i++) {
       try {
-        console.log(`📦 Trying heic2any load strategy ${i + 1}...`);
         const result = await strategies[i]();
         
         if (typeof result === 'function') {
-          console.log(`✅ heic2any loaded successfully with strategy ${i + 1}`);
           return result;
         } else {
           throw new Error(`Strategy ${i + 1} did not return a function`);
@@ -111,10 +109,6 @@ class HEICConverter {
         toType: 'image/jpeg',
         quality: quality
       });
-
-      const conversionTime = Date.now() - startTime;
-      console.log(`✅ HEIC conversion completed in ${conversionTime}ms`);
-      console.log(`📊 Size: ${heicFile.size} → ${jpegBlob.size} (${Math.round((1 - jpegBlob.size / heicFile.size) * 100)}% reduction)`);
 
       return jpegBlob;
 

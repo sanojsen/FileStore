@@ -1,0 +1,89 @@
+// Global request manager to prevent duplicate requests
+class RequestManager {
+  constructor() {
+    this.activeRequests = new Map();
+    this.cache = new Map();
+    this.CACHE_DURATION = 30000; // 30 seconds
+  }
+
+  createKey(page, filter, sortBy) {
+    return `files-${page}-${filter}-${sortBy}`;
+  }
+
+  async fetchFiles(page, filter, sortBy) {
+    const key = this.createKey(page, filter, sortBy);
+    
+    // Check cache first
+    const cached = this.cache.get(key);
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
+      console.log(`[RequestManager] Returning cached data for ${key}`);
+      return cached.data;
+    }
+
+    // Check if request is already in progress
+    if (this.activeRequests.has(key)) {
+      console.log(`[RequestManager] Request already in progress for ${key}, waiting...`);
+      return this.activeRequests.get(key);
+    }
+
+    console.log(`[RequestManager] Starting new request for ${key}`);
+
+    // Create new request
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: '12',
+      sortBy: sortBy
+    });
+    
+    if (filter !== 'all') {
+      params.append('type', filter);
+    }
+
+    const requestPromise = fetch(`/api/files?${params}`)
+      .then(response => response.json().then(data => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to fetch files (${response.status})`);
+        }
+        
+        // Cache the result
+        this.cache.set(key, {
+          data: data,
+          timestamp: Date.now()
+        });
+        
+        // Clean old cache entries
+        if (this.cache.size > 50) {
+          const oldestKey = this.cache.keys().next().value;
+          this.cache.delete(oldestKey);
+        }
+        
+        return data;
+      })
+      .finally(() => {
+        // Remove from active requests
+        this.activeRequests.delete(key);
+      });
+
+    this.activeRequests.set(key, requestPromise);
+    return requestPromise;
+  }
+
+  clearCache() {
+    this.cache.clear();
+    this.activeRequests.clear();
+  }
+}
+
+// Global singleton instance
+let requestManager;
+if (typeof window !== 'undefined') {
+  if (!window.__requestManager) {
+    window.__requestManager = new RequestManager();
+  }
+  requestManager = window.__requestManager;
+} else {
+  requestManager = new RequestManager();
+}
+
+export default requestManager;

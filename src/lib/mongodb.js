@@ -51,7 +51,6 @@ export const connectToDatabase = async () => {
       retryReads: true,
     });
     
-    console.log('✅ MongoDB connected successfully');
     return mongoose.connections[0];
     
   } catch (error) {

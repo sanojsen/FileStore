@@ -15,10 +15,11 @@ function HomeContent() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.push('/dashboard');
+    if (status === 'authenticated' && session) {
+      // Use replace instead of push to avoid adding to history
+      router.replace('/dashboard');
     }
-  }, [status, router]); // Removed session dependency
+  }, [status, session, router]);
   useEffect(() => {
     const urlMessage = searchParams.get('message');
     if (urlMessage) {
@@ -45,7 +46,8 @@ function HomeContent() {
         setError('Invalid email or password');
         console.error('Login error:', result.error);
       } else if (result?.ok) {
-        router.push('/dashboard');
+        // Use replace instead of push to avoid adding to history
+        router.replace('/dashboard');
       } else {
         setError('Something went wrong. Please try again.');
       }
@@ -198,4 +200,4 @@ export default function Home() {
       <HomeContent />
     </Suspense>
   );
-}
+}

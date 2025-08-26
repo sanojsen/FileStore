@@ -54,6 +54,13 @@ export default function Upload() {
     }));
   }, []);
 
+  // Handle navigation in useEffect to avoid hooks order issues
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/');
+    }
+  }, [status, router]);
+
   // Early returns after all hooks are defined
   if (status === 'loading') {
     return (
@@ -64,8 +71,11 @@ export default function Upload() {
   }
   
   if (status === 'unauthenticated') {
-    router.push('/');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Redirecting...</div>
+      </div>
+    );
   }
 
   const handleDrop = (e) => {

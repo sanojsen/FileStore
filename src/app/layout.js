@@ -3,7 +3,6 @@ import "./globals.css";
 import AuthProvider from "../components/AuthProvider";
 import InstallPrompt from "../components/InstallPrompt";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
-import VersionChecker from "../components/VersionChecker";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,7 +29,6 @@ export default function RootLayout({ children }) {
           {children}
           <InstallPrompt />
           <ServiceWorkerRegistration />
-          <VersionChecker />
         </AuthProvider>
       </body>
     </html>
