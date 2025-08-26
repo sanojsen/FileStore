@@ -22,11 +22,12 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    // Validate file size (1GB limit to support large video files)
-    const maxSize = 1024 * 1024 * 1024; // 1GB
+    // Validate file size - Vercel free tier has 4.5MB request limit
+    // For larger files, we'd need to use direct R2 upload with presigned URLs
+    const maxSize = 2048 * 1024 * 1024; // 4MB for Vercel free tier
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File size exceeds 1GB limit' },
+        { error: 'File size exceeds 2GB limit on free hosting tier' },
         { status: 400 }
       );
     }
@@ -113,4 +114,4 @@ export async function GET(request) {
       { status: 500 }
     );
   }
-}
+}

@@ -5,6 +5,119 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ThumbnailService } from '../../lib/thumbnailService';
 
+// Video metadata extraction function
+const extractVideoMetadata = (file) => {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    
+    video.preload = 'metadata';
+    video.muted = true;
+    
+    video.onloadedmetadata = () => {
+      try {
+        const metadata = {
+          dimensions: {
+            width: video.videoWidth,
+            height: video.videoHeight
+          },
+          duration: video.duration
+        };
+        
+        // Try to extract creation date from file properties
+        let creationDate = null;
+        
+        // Use file.lastModified as fallback
+        if (file.lastModified) {
+          creationDate = new Date(file.lastModified);
+        }
+        
+        // For mobile videos, try to get a more accurate date from file name patterns
+        if (file.name) {
+          // Common mobile video naming patterns
+          const patterns = [
+            // iOS: IMG_1234.MOV, VID_20231225_123456.mp4
+            /(?:IMG|VID)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+            // Android: VID_20231225_123456.mp4
+            /VID_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+            // WhatsApp: VID-20231225-WA0001.mp4
+            /VID-(\d{4})(\d{2})(\d{2})-/,
+            // General: 20231225_123456.mp4
+            /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
+            // Screen recordings: Screen Recording 2023-12-25 at 12.34.56.mov
+            /(\d{4})-(\d{2})-(\d{2}) at (\d{2})\.(\d{2})\.(\d{2})/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = file.name.match(pattern);
+            if (match) {
+              try {
+                const [, year, month, day, hour, minute, second] = match;
+                const extractedDate = new Date(
+                  parseInt(year),
+                  parseInt(month) - 1, // Month is 0-indexed
+                  parseInt(day),
+                  parseInt(hour) || 0,
+                  parseInt(minute) || 0,
+                  parseInt(second) || 0
+                );
+                
+                if (!isNaN(extractedDate.getTime()) && extractedDate.getFullYear() > 2000) {
+                  creationDate = extractedDate;
+                  console.log('Extracted date from filename:', file.name, '->', creationDate);
+                  break;
+                }
+              } catch (err) {
+                console.warn('Error parsing date from filename:', err);
+              }
+            }
+          }
+        }
+        
+        if (creationDate) {
+          metadata.dateTime = {
+            taken: creationDate.toISOString()
+          };
+          console.log(`📅 Video creation date extracted:`, {
+            fileName: file.name,
+            extractedDate: creationDate.toISOString(),
+            source: 'filename_pattern'
+          });
+        } else {
+          console.log(`⚠️ No creation date found for video:`, {
+            fileName: file.name,
+            lastModified: file.lastModified ? new Date(file.lastModified).toISOString() : 'none',
+            fallback: 'will_use_file_lastModified_or_upload_time'
+          });
+        }
+        
+        URL.revokeObjectURL(url);
+        resolve(metadata);
+      } catch (error) {
+        console.warn('Error extracting video metadata:', error);
+        URL.revokeObjectURL(url);
+        resolve({});
+      }
+    };
+    
+    video.onerror = () => {
+      console.warn('Could not load video for metadata extraction');
+      URL.revokeObjectURL(url);
+      resolve({});
+    };
+    
+    // Set timeout to avoid hanging
+    setTimeout(() => {
+      if (video.readyState === 0) {
+        URL.revokeObjectURL(url);
+        resolve({});
+      }
+    }, 5000);
+    
+    video.src = url;
+  });
+};
+
 // File upload status constants
 const UPLOAD_STATUS = {
   PENDING: 'pending',
@@ -294,7 +407,18 @@ export default function Upload() {
         currentStep: 'Extracting metadata...'
       });
 
-      // Extract metadata from server
+      // Extract client-side video metadata first (for better video metadata)
+      if (file.type.startsWith('video/')) {
+        try {
+          const clientVideoMetadata = await extractVideoMetadata(file);
+          extractedMetadata = { ...extractedMetadata, ...clientVideoMetadata };
+          console.log('Extracted client-side video metadata:', clientVideoMetadata);
+        } catch (videoMetadataError) {
+          console.warn('Failed to extract client-side video metadata:', videoMetadataError);
+        }
+      }
+
+      // Extract metadata from server (for additional metadata, especially EXIF)
       if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
         try {
           const formData = new FormData();

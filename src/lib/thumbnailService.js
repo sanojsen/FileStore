@@ -75,6 +75,16 @@ export class ThumbnailService {
         }
       }
 
+      // Handle video files with canvas-based thumbnail generation
+      if (file.type.startsWith('video/')) {
+        try {
+          return await this.createVideoThumbnail(file, maxSize);
+        } catch (videoError) {
+          console.warn('Video thumbnail failed, creating placeholder:', videoError.message);
+          return this.createPlaceholderThumbnail(file, maxSize);
+        }
+      }
+
       // Handle standard image formats with client-side processing
       if (this.canProcessClientSide(file)) {
         try {
@@ -320,6 +330,209 @@ export class ThumbnailService {
       console.error('❌ HEIC thumbnail creation failed:', error.message);
       return this.createPlaceholderThumbnail(file, maxSize);
     }
+  }
+
+  /**
+   * Create video thumbnail using Canvas API
+   */
+  static async createVideoThumbnail(file, maxSize = 300) {
+    return new Promise((resolve, reject) => {
+      // Validate file
+      if (!file || !file.type || !file.type.startsWith('video/')) {
+        reject(new Error(`Invalid video file: ${file?.type || 'unknown type'}`));
+        return;
+      }
+
+      // Check file size (limit to reasonable size for client processing)
+      if (file.size > 100 * 1024 * 1024) { // 100MB limit for videos
+        reject(new Error(`Video file too large: ${(file.size / 1024 / 1024).toFixed(1)}MB`));
+        return;
+      }
+
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      let objectUrl = null;
+      let attemptCount = 0;
+      const maxAttempts = 3;
+
+      // Set up timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        reject(new Error(`Video thumbnail timeout after 20 seconds for ${file.name}`));
+      }, 20000);
+
+      const tryCapture = (seekTime) => {
+        console.log(`Attempting video capture at ${seekTime}s (attempt ${attemptCount + 1})`);
+        
+        video.onseeked = () => {
+          try {
+            // Add a small delay to ensure the frame is fully rendered
+            setTimeout(() => {
+              try {
+                console.log(`🎬 Video seeked to ${seekTime}s, attempting capture...`);
+                
+                // Calculate new dimensions while maintaining aspect ratio
+                const { width: newWidth, height: newHeight } = this.calculateDimensions(
+                  video.videoWidth, 
+                  video.videoHeight, 
+                  maxSize
+                );
+
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+
+                // Clear canvas with white background first
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, newWidth, newHeight);
+
+                // Draw video frame to canvas
+                ctx.drawImage(video, 0, 0, newWidth, newHeight);
+
+                // Check if the captured frame is mostly black
+                const imageData = ctx.getImageData(0, 0, newWidth, newHeight);
+                const data = imageData.data;
+                let brightPixels = 0;
+                const totalPixels = newWidth * newHeight;
+                
+                // Sample every 10th pixel to check brightness
+                for (let i = 0; i < data.length; i += 40) { // 40 = 4 * 10 (RGBA * sample rate)
+                  const r = data[i];
+                  const g = data[i + 1];
+                  const b = data[i + 2];
+                  const brightness = (r + g + b) / 3;
+                  if (brightness > 30) { // If pixel is not very dark
+                    brightPixels++;
+                  }
+                }
+
+                const brightRatio = brightPixels / (totalPixels / 10);
+                console.log(`📊 Frame brightness analysis: ${brightRatio.toFixed(2)} at time ${seekTime}s (${brightPixels} bright pixels out of ${Math.floor(totalPixels / 10)} sampled)`);
+
+                // If frame is too dark and we haven't exhausted attempts, try another timestamp
+                if (brightRatio < 0.1 && attemptCount < maxAttempts - 1) {
+                  attemptCount++;
+                  const newSeekTime = Math.min(attemptCount * 2, video.duration * 0.5);
+                  console.log(`🔄 Frame too dark (ratio: ${brightRatio.toFixed(2)}), trying again at ${newSeekTime}s (attempt ${attemptCount + 1})`);
+                  tryCapture(newSeekTime);
+                  return;
+                }
+
+                // Convert to blob
+                canvas.toBlob((blob) => {
+                  clearTimeout(timeout);
+                  
+                  // Clean up object URL
+                  if (objectUrl) {
+                    URL.revokeObjectURL(objectUrl);
+                    objectUrl = null;
+                  }
+
+                  if (blob) {
+                    console.log(`Video thumbnail created successfully: ${newWidth}x${newHeight}, brightness: ${brightRatio.toFixed(2)}`);
+                    resolve({
+                      blob,
+                      width: newWidth,
+                      height: newHeight,
+                      mimeType: 'image/jpeg',
+                      source: 'video_canvas'
+                    });
+                  } else {
+                    reject(new Error('Failed to create video thumbnail blob'));
+                  }
+                }, 'image/jpeg', 0.85);
+              } catch (error) {
+                clearTimeout(timeout);
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                reject(new Error(`Canvas processing failed for video: ${error.message}`));
+              }
+            }, 100); // 100ms delay to ensure frame is rendered
+          } catch (error) {
+            clearTimeout(timeout);
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            reject(new Error(`Video frame capture failed: ${error.message}`));
+          }
+        };
+
+        video.currentTime = seekTime;
+      };
+
+      video.onloadedmetadata = () => {
+        try {
+          console.log(`Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, duration: ${video.duration}s`);
+          
+          // Validate video dimensions
+          if (video.videoWidth === 0 || video.videoHeight === 0) {
+            clearTimeout(timeout);
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            reject(new Error(`Invalid video dimensions: ${video.videoWidth}x${video.videoHeight}`));
+            return;
+          }
+
+          // Validate video duration
+          if (!video.duration || video.duration === 0) {
+            clearTimeout(timeout);
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            reject(new Error('Video has no duration or is corrupted'));
+            return;
+          }
+
+          // Start with seeking to 1 second or 5% of duration, whichever is smaller
+          const initialSeekTime = Math.min(1, video.duration * 0.05);
+          tryCapture(initialSeekTime);
+        } catch (error) {
+          clearTimeout(timeout);
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          reject(new Error('Failed to process video metadata: ' + error.message));
+        }
+      };
+
+      video.onloadeddata = () => {
+        console.log('Video data loaded, ready for thumbnail generation');
+      };
+
+      video.onerror = (event) => {
+        clearTimeout(timeout);
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+        }
+        
+        // More detailed error information
+        const errorDetails = [];
+        errorDetails.push(`File: ${file.name}`);
+        errorDetails.push(`Type: ${file.type}`);
+        errorDetails.push(`Size: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+        
+        if (event && event.type) {
+          errorDetails.push(`Event: ${event.type}`);
+        }
+        
+        if (video.error) {
+          errorDetails.push(`Code: ${video.error.code}`);
+          errorDetails.push(`Message: ${video.error.message || 'Unknown error'}`);
+        }
+        
+        reject(new Error(`Failed to load video for thumbnail - ${errorDetails.join(', ')}`));
+      };
+
+      try {
+        // Set video properties for thumbnail generation
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.crossOrigin = 'anonymous'; // In case of cross-origin videos
+        
+        // Create object URL and set as source
+        objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+        
+        console.log(`Starting video thumbnail generation for ${file.name}`);
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to create video object URL: ${error.message}`));
+      }
+    });
   }
 
   /**

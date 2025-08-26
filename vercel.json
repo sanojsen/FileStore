@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "src/app/api/upload/route.js": {
+      "maxDuration": 10
+    },
+    "src/app/api/files/route.js": {
+      "maxDuration": 10
+    }
+  },
+  "regions": ["iad1"],
+  "framework": "nextjs"
+}

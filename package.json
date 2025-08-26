@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cleanup": "node scripts/cleanup.js",
+    "wipe": "node scripts/cleanup.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",

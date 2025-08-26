@@ -205,23 +205,54 @@ export async function POST(request) {
     if (file.type.startsWith('video/')) {
       try {
         // Try to extract basic video metadata using exifr (works for some video formats)
-        const videoExif = await exifr.parse(buffer);
+        const videoExif = await exifr.parse(buffer, {
+          // Enable more comprehensive parsing for videos
+          multiSegment: true,
+          mergeOutput: true,
+          translateKeys: true,
+          translateValues: true,
+          reviveValues: true,
+          sanitize: true,
+          // Include QuickTime and other video-specific tags
+          pick: [
+            'CreationDate', 'CreateDate', 'DateTimeOriginal', 'MediaCreateDate',
+            'TrackCreateDate', 'MediaModifyDate', 'TrackModifyDate',
+            'Duration', 'ImageWidth', 'ImageHeight', 'VideoFrameRate',
+            'GPSLatitude', 'GPSLongitude', 'GPSLatitudeRef', 'GPSLongitudeRef',
+            'GPSAltitude', 'GPSDateTime', 'GPSDateStamp', 'GPSTimeStamp',
+            // iOS/Apple specific
+            'com.apple.quicktime.creationdate',
+            'com.apple.quicktime.location.date',
+            'com.apple.quicktime.location.accuracy.horizontal',
+            'com.apple.quicktime.make',
+            'com.apple.quicktime.model',
+            'com.apple.quicktime.software',
+            // Android/Google specific
+            'com.google.photos.people.rating',
+            'com.google.photos.image.cta',
+            // General video metadata
+            'VideoCodec', 'AudioCodec', 'Bitrate', 'FrameRate',
+            'Make', 'Model', 'Software'
+          ]
+        });
+        
         if (videoExif) {
           metadata = {
             ...metadata, // Preserve any existing metadata from file content extraction
             dateTime: {
-              // Prioritize video EXIF dates over file content extraction
-              taken: videoExif.CreationDate || 
+              // Try multiple video creation date fields in order of preference
+              taken: videoExif['com.apple.quicktime.creationdate'] || // iOS videos first
+                     videoExif.CreationDate || 
                      videoExif.DateTimeOriginal || 
                      videoExif.CreateDate || 
                      videoExif.MediaCreateDate ||
-                     videoExif['com.apple.quicktime.creationdate'] || // iOS videos
+                     videoExif.TrackCreateDate ||
                      videoExif['com.apple.quicktime.location.date'] || // iOS location date
                      (metadata.dateTime ? metadata.dateTime.taken : null)
             }
           };
 
-          // Add dimensions if available
+          // Add video-specific metadata
           if (videoExif.ImageWidth && videoExif.ImageHeight) {
             metadata.dimensions = {
               width: videoExif.ImageWidth,
@@ -232,6 +263,23 @@ export async function POST(request) {
           // Duration
           if (videoExif.Duration) {
             metadata.duration = videoExif.Duration;
+          }
+
+          // Frame rate
+          if (videoExif.VideoFrameRate || videoExif.FrameRate) {
+            metadata.frameRate = videoExif.VideoFrameRate || videoExif.FrameRate;
+          }
+
+          // Device information
+          if (videoExif.Make || videoExif.Model || videoExif.Software ||
+              videoExif['com.apple.quicktime.make'] || 
+              videoExif['com.apple.quicktime.model'] ||
+              videoExif['com.apple.quicktime.software']) {
+            metadata.device = {
+              make: videoExif.Make || videoExif['com.apple.quicktime.make'],
+              model: videoExif.Model || videoExif['com.apple.quicktime.model'],
+              software: videoExif.Software || videoExif['com.apple.quicktime.software']
+            };
           }
 
           // GPS location for videos (especially mobile videos)
@@ -250,10 +298,13 @@ export async function POST(request) {
               metadata.location = {
                 latitude: latitude,
                 longitude: longitude,
-                altitude: videoExif.GPSAltitude
+                altitude: videoExif.GPSAltitude,
+                timestamp: videoExif.GPSDateTime || videoExif.GPSDateStamp
               };
             }
           }
+
+          console.log('Extracted video metadata fields:', Object.keys(videoExif));
         }
       } catch (videoError) {
         console.warn('Error extracting video metadata:', videoError);

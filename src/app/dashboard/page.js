@@ -156,6 +156,7 @@ export default function Dashboard() {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [viewableFiles, setViewableFiles] = useState([]);
   const [downloading, setDownloading] = useState(false);
+  const [totalFiles, setTotalFiles] = useState(null);
   // Refs for infinite scroll and preventing multiple setups
   const loadMoreRef = useRef(null);
   const observerRef = useRef(null);
@@ -243,6 +244,21 @@ export default function Dashboard() {
       }, 1000);
     }
   }, []);
+
+  // Fetch total files count from stats API
+  const fetchTotalFiles = useCallback(async () => {
+    try {
+      const response = await fetch('/api/files/stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setTotalFiles(stats.totalFiles);
+      }
+    } catch (err) {
+      console.error('Error fetching total files count:', err);
+      // Don't set error state for this, it's not critical
+    }
+  }, []);
+
   // Load more files (defined before useEffect that uses it)
   const loadMore = useCallback(() => {
     if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
@@ -267,12 +283,13 @@ export default function Dashboard() {
         if (!fetchInProgressRef.current) {
           isInitializedRef.current = true;
           fetchFiles(1, true);
+          fetchTotalFiles(); // Fetch total files count
         }
       }, 300); // Increased debounce to 300ms
       
       return () => clearTimeout(timeoutId);
     }
-  }, [status, session?.user?.id, filter, sortBy, fetchFiles]); // Use session.user.id instead of full session
+  }, [status, session?.user?.id, filter, sortBy, fetchFiles, fetchTotalFiles]); // Use session.user.id instead of full session
   // Handle visibility change for data refresh
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -392,6 +409,7 @@ export default function Dashboard() {
           setFiles(prevFiles => prevFiles.filter(file => !successfulIds.has(file._id)));
           // Update selection to only include failed deletes
           setSelectedFiles(new Set(failedDeletes.map(f => f.fileId)));
+          fetchTotalFiles(); // Update total files count after partial deletion
         } else {
           // All failed
           throw new Error(`Failed to delete all ${failedDeletes.length} file${failedDeletes.length !== 1 ? 's' : ''}. Check console for details.`);
@@ -400,6 +418,7 @@ export default function Dashboard() {
         // All succeeded
         setFiles(prevFiles => prevFiles.filter(file => !selectedFiles.has(file._id)));
         clearSelection();
+        fetchTotalFiles(); // Update total files count after deletion
       }
     } catch (err) {
       console.error('Error deleting files:', err);
@@ -950,7 +969,10 @@ export default function Dashboard() {
               ) : (
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-gray-500">
-                    {files.length} files
+                    {totalFiles !== null 
+                      ? `${files.length} of ${totalFiles} files loaded`
+                      : `${files.length} files`
+                    }
                   </span>
                   <button
                     onClick={() => setIsSelectionMode(true)}
