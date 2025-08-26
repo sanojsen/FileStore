@@ -68,8 +68,13 @@ self.addEventListener('fetch', (event) => {
 
   // Skip API calls from being cached (except for specific ones)
   if (event.request.url.includes('/api/')) {
+    // Skip caching for authentication-related API calls
+    if (event.request.url.includes('/api/auth/')) {
+      return; // Always fetch fresh for auth
+    }
+    
     // Only cache specific API responses that are safe to cache
-    if (event.request.url.includes('/api/auth/session')) {
+    if (event.request.url.includes('/api/files/stats')) {
       event.respondWith(
         caches.match(event.request)
           .then((response) => {
@@ -118,7 +123,8 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         // Offline fallback
         if (event.request.destination === 'document') {
-          return caches.match('/dashboard');
+          // For HTML pages, redirect to root if offline
+          return caches.match('/') || caches.match('/dashboard');
         }
         
         // Return a generic offline response for images

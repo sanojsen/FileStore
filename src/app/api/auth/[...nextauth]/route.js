@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { User } from '../../../../models/User';
+
 export const authOptions = {
   providers: [
     CredentialsProvider({
@@ -13,18 +14,22 @@ export const authOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
+
         try {
           const user = await User.findByEmail(credentials.email);
           if (!user) {
             return null;
           }
+
           const isValidPassword = await User.validatePassword(
             credentials.password,
             user.password
           );
+
           if (!isValidPassword) {
             return null;
           }
+
           return {
             id: user._id.toString(),
             email: user.email,
@@ -39,6 +44,7 @@ export const authOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: '/',
@@ -60,4 +66,4 @@ export const authOptions = {
   },
 };
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+export { handler as GET, handler as POST };

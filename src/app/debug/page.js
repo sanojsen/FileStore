@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import ThumbnailService from '../../lib/thumbnailService';
+import { ThumbnailService } from '../../lib/thumbnailService';
 
 // Video metadata extraction function (copied from upload page)
 const extractVideoMetadata = (file) => {

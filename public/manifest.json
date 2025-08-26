@@ -2,7 +2,7 @@
   "name": "FileStores",
   "short_name": "FileStores",
   "description": "Secure cloud storage for your photos, videos, and documents with EXIF-based organization",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",

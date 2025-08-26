@@ -3,7 +3,7 @@
 ## Pre-deployment Checklist
 
 ### 1. Environment Variables
-Set these in Vercel dashboard:
+Set these in Vercel dashboard (CRITICAL for authentication to work):
 ```
 CLOUDFLARE_R2_ENDPOINT=your_endpoint
 CLOUDFLARE_ACCESS_KEY_ID=your_access_key
@@ -11,11 +11,20 @@ CLOUDFLARE_SECRET_ACCESS_KEY=your_secret_key
 CLOUDFLARE_BUCKET_NAME=your_bucket_name
 CLOUDFLARE_PUBLIC_URL=your_public_url
 MONGODB_URI=your_mongodb_connection_string
-NEXTAUTH_URL=your_vercel_domain
-NEXTAUTH_SECRET=your_secret_key
+NEXTAUTH_URL=https://file-store-theta.vercel.app
+NEXTAUTH_SECRET=your_long_random_secret_key_at_least_32_chars
 ```
 
-### 2. Vercel Configuration
+⚠️ **IMPORTANT**: Without `NEXTAUTH_URL` and `NEXTAUTH_SECRET` properly set, you'll get "this site can't be reached" errors after login/reload.
+
+### 2. Generate NEXTAUTH_SECRET
+Use this command to generate a secure secret:
+```bash
+openssl rand -base64 32
+```
+Or use: https://generate-secret.vercel.app/32
+
+### 3. Vercel Configuration
 Create `vercel.json` with optimized settings:
 
 ### 3. Build Configuration
