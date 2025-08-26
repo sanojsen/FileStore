@@ -39,21 +39,20 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
       }    return null;
   };
   const imageSrc = getImageSrc();
-  // Update current source when it changes (prevent infinite loops)
   useEffect(() => {
     if (imageSrc !== currentSrc) {
       setCurrentSrc(imageSrc);
       setImageLoading(true);
     }
-  }, [imageSrc, currentSrc]); // Added currentSrc dependency
-  // Reset states when file changes
+  }, [imageSrc, currentSrc]);
   useEffect(() => {
     setImageError(false);
     setFallbackError(false);
     setImageLoading(true);
   }, [file._id]);
+
   // Show image/video thumbnail if we have a valid source
-  if (imageSrc) {
+  if (imageSrc && (file.fileType === 'image' || file.fileType === 'video')) {
     return (
       <div className={`${size} relative overflow-hidden bg-gray-100 flex-shrink-0 ${className}`}>
         {imageLoading && (
@@ -71,33 +70,21 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
             setImageLoading(false);
           }}
           onError={() => {
-            console.error('Image failed to load:', imageSrc);
             setImageLoading(false);
-            if (!imageError && file.thumbnailPath && file.fileType === 'image') {
-              // Try original file if thumbnail failed for images
-              setImageError(true);
-            } else if (!imageError && file.thumbnailPath && file.fileType === 'video') {
-              // For videos, skip to icon if thumbnail fails
-              setImageError(true);
-              setFallbackError(true);
-            } else {
-              // Show generic icon
-              setFallbackError(true);
-            }
+            setImageError(true);
+            setFallbackError(true);
           }}
         />
-        {/* Debug indicator - remove in production */}
         {process.env.NODE_ENV === 'development' && (
           <div className="absolute top-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5 rounded">
-            {!imageError && file.thumbnailPath ? 'T' : 
-             imageError && file.fileType === 'image' ? 'O' : 
-             'F'}
+            {!imageError && file.thumbnailPath ? 'T' : imageError ? 'F' : 'O'}
           </div>
         )}
       </div>
     );
   }
-  // Generic thumbnails for different file types
+
+  // If no thumbnail, show file type icon
   const getFileIcon = (fileType, mimeType) => {
     const iconClass = `${size} flex items-center justify-center flex-shrink-0 ${className}`;
     switch (fileType) {
@@ -162,4 +149,4 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
   return getFileIcon(file.fileType, file.mimeType);
 });
 FileThumbnail.displayName = 'FileThumbnail';
-export default FileThumbnail;
+export default FileThumbnail;

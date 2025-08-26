@@ -927,8 +927,8 @@ export default function Dashboard() {
         )}
         {/* Files Gallery */}
         {!loading && !error && files.length > 0 && (
-          <div className="bg-white shadow-sm overflow-hidden">
-            <div className="p-6">
+          <div className="bg-white overflow-hidden">
+            <div>
               {Object.keys(groupedFiles).map((dateKey, groupIndex) => {
                 const group = groupedFiles[dateKey];
                 return (

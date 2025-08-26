@@ -50,7 +50,10 @@ const fileSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     index: true,
-    default: Date.now
+    default: Date.now,
+    // This field represents the actual date when the content was created/taken,
+    // not the upload date. For photos/videos, this comes from EXIF metadata.
+    // Priority: 1. EXIF DateTimeOriginal, 2. File system date, 3. Upload time
   },
   metadata: {
     uploadMethod: {
@@ -125,4 +128,4 @@ fileSchema.methods.getExtension = function() {
   return lastDot > 0 ? name.substring(lastDot + 1).toLowerCase() : '';
 };
 const File = mongoose.models.File || mongoose.model('File', fileSchema);
-export default File;
+export default File;

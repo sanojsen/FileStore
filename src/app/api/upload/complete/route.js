@@ -30,23 +30,26 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    // Determine the createdAt date with a better fallback strategy:
-    // 1. EXIF DateTimeOriginal (when photo/video was taken)
-    // 2. File system metadata (when file was created/modified)  
-    // 3. Current time (upload time) as last resort
+    // Enhanced date determination strategy for different file types:
+    // 1. EXIF DateTimeOriginal (photos/videos - when content was captured)  
+    // 2. File content metadata (PDF creation date, Office document properties, etc.)
+    // 3. File system metadata (when file was created/modified on device)
+    // 4. Current time (upload time) as last resort
     const uploadTime = new Date(); // Store the upload time
     let createdAt = uploadTime; // Default to upload time as last resort
     let dateSource = 'upload'; // Track where the date came from for logging
-    // First, check if metadata contains EXIF date information
+    // First, check if metadata contains date information (EXIF or file content)
     if (metadata && metadata.dateTime && metadata.dateTime.taken) {
       try {
         const exifDate = new Date(metadata.dateTime.taken);
         if (!isNaN(exifDate.getTime()) && exifDate.getTime() > 0) {
           createdAt = exifDate;
-          dateSource = 'exif';
+          dateSource = mimeType.startsWith('image/') ? 'exif-photo' : 
+                      mimeType.startsWith('video/') ? 'exif-video' : 'content-metadata';
+          console.log(`📅 Using ${dateSource} date for ${originalName}: ${exifDate.toISOString()}`);
         }
       } catch (dateError) {
-        console.warn('Invalid EXIF date, trying other fallbacks:', dateError);
+        console.warn('Invalid content date, trying file system date:', dateError);
       }
     }
     // If no EXIF date, try file system metadata (file modification date)
@@ -56,11 +59,18 @@ export async function POST(request) {
         if (!isNaN(fsDate.getTime()) && fsDate.getTime() > 0) {
           createdAt = fsDate;
           dateSource = 'filesystem';
+          console.log(`📁 Using file system date for ${originalName}: ${fsDate.toISOString()}`);
         }
       } catch (fsError) {
         console.warn('Invalid file system date, using upload time:', fsError);
       }
     }
+
+    // Log final result for upload time fallback
+    if (dateSource === 'upload') {
+      console.log(`⏰ Using upload time for ${originalName}: ${uploadTime.toISOString()}`);
+    }
+
     // Create file document
     const file = new File({
       userId: session.user.id,
@@ -75,6 +85,7 @@ export async function POST(request) {
       createdAt: createdAt,
       metadata: {
         uploadMethod: 'direct-r2',
+        dateSource: dateSource, // Store where the createdAt date came from
         tags,
         description,
         ...metadata // Include extracted metadata (EXIF, dimensions, etc.)
@@ -105,4 +116,4 @@ export async function POST(request) {
       { status: 500 }
     );
   }
-}
+}

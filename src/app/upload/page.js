@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ClientThumbnailGenerator } from '../../lib/clientThumbnailGenerator';
+import { ThumbnailService } from '../../lib/thumbnailService';
 
 // File upload status constants
 const UPLOAD_STATUS = {
@@ -211,25 +211,71 @@ export default function Upload() {
         extractedMetadata.fileSystemDate = new Date(file.lastModified).toISOString();
       }
 
-      // Create thumbnail for images/videos
+      // Create thumbnail for images/videos (optimized for Vercel free tier)
       if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        const isHEIC = ThumbnailService.isHEIC(file);
+        
         updateFileState(fileId, {
           progress: 50,
-          currentStep: 'Creating thumbnail...'
+          currentStep: isHEIC ? 
+            `Processing HEIC image (${(file.size / 1024 / 1024).toFixed(1)}MB)...` : 
+            'Creating thumbnail...'
         });
 
         try {
-          const clientThumbnail = await ClientThumbnailGenerator.createThumbnail(file, 300);
-          if (clientThumbnail && uploadInfo.thumbnailPresignedUrl) {
-            const thumbnailUploadResponse = await fetch(uploadInfo.thumbnailPresignedUrl, {
-              method: 'PUT',
-              body: clientThumbnail.blob,
-              headers: { 'Content-Type': 'image/jpeg' },
+          console.log(`🎯 Starting thumbnail creation for: ${file.name}`, {
+            type: file.type,
+            size: file.size,
+            isHEIC: isHEIC
+          });
+
+          const thumbnail = await ThumbnailService.createThumbnail(file, 300);
+          
+          if (thumbnail) {
+            console.log(`✅ Thumbnail created successfully:`, {
+              source: thumbnail.source,
+              width: thumbnail.width,
+              height: thumbnail.height
             });
-            thumbnailCreated = thumbnailUploadResponse.ok;
+
+            if (uploadInfo.thumbnailPresignedUrl) {
+              const thumbnailUploadResponse = await fetch(uploadInfo.thumbnailPresignedUrl, {
+                method: 'PUT',
+                body: thumbnail.blob,
+                headers: { 'Content-Type': 'image/jpeg' },
+              });
+              
+              thumbnailCreated = thumbnailUploadResponse.ok;
+              
+              if (thumbnailCreated) {
+                console.log(`📤 Thumbnail uploaded successfully for: ${file.name}`);
+                
+                if (thumbnail.source === 'placeholder') {
+                  updateFileState(fileId, {
+                    currentStep: 'Placeholder thumbnail created (HEIC conversion unavailable)'
+                  });
+                } else if (thumbnail.source === 'heic_converted') {
+                  updateFileState(fileId, {
+                    currentStep: 'HEIC converted and thumbnail created ✅'
+                  });
+                }
+              } else {
+                console.error('❌ Thumbnail upload failed');
+              }
+            }
+          } else {
+            console.warn('⚠️ No thumbnail returned from ThumbnailService');
           }
         } catch (thumbnailError) {
-          console.warn('Failed to generate thumbnail:', thumbnailError);
+          console.error('❌ Thumbnail creation failed:', thumbnailError);
+          
+          // For HEIC files, this is expected in some cases - show helpful message
+          if (isHEIC) {
+            updateFileState(fileId, {
+              currentStep: 'HEIC processing failed - file will upload without thumbnail'
+            });
+            console.log('📸 HEIC thumbnail failed - this is expected if heic2any library is not available');
+          }
         }
       }
 
