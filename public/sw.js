@@ -1,9 +1,7 @@
-const APP_VERSION = '0.1.2'; // Updated version for cache invalidation
+const APP_VERSION = '1.0.0'; // Production version
 const CACHE_NAME = `filestores-v${APP_VERSION}`;
 const STATIC_CACHE_URLS = [
   '/',
-  '/dashboard',
-  '/upload',
   '/register',
   '/manifest.json',
   '/icons/icon-192x192.png',
@@ -12,14 +10,30 @@ const STATIC_CACHE_URLS = [
   '/apple-touch-icon.png'
 ];
 
-// Install event - cache static assets
+// Cache strategies
+const CACHE_STRATEGIES = {
+  CACHE_FIRST: 'cache-first',
+  NETWORK_FIRST: 'network-first',
+  STALE_WHILE_REVALIDATE: 'stale-while-revalidate'
+};
+
+// Install event - cache static assets with better error handling
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Install', APP_VERSION);
+  console.log(`Service Worker: Install v${APP_VERSION}`);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching static assets');
-        return cache.addAll(STATIC_CACHE_URLS.map(url => new Request(url, { cache: 'reload' })));
+        // Use Promise.allSettled to handle individual failures gracefully
+        return Promise.allSettled(
+          STATIC_CACHE_URLS.map(url => 
+            cache.add(new Request(url, { cache: 'reload' }))
+              .catch(error => console.warn(`Failed to cache ${url}:`, error))
+          )
+        );
+      })
+      .then(() => {
+        console.log('Service Worker: Static assets cached successfully');
       })
       .catch((error) => {
         console.error('Service Worker: Cache failed', error);
@@ -107,10 +121,10 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request)
       .then((response) => {
         // Return cached version or fetch from network
-        return response || fetch(event.request)
+        return response || fetch(event.request, { redirect: 'follow' })
           .then((fetchResponse) => {
-            // Don't cache if not a valid response
-            if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic') {
+            // Don't cache redirected responses or non-successful responses
+            if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic' || fetchResponse.redirected) {
               return fetchResponse;
             }
 

@@ -44,7 +44,26 @@ export const authOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: process.env.NODE_ENV === 'production' ? 7 * 24 * 60 * 60 : 30 * 24 * 60 * 60, // 7 days in prod, 30 days in dev
+    updateAge: 24 * 60 * 60, // Update session every 24 hours
+  },
+  jwt: {
+    maxAge: process.env.NODE_ENV === 'production' ? 7 * 24 * 60 * 60 : 30 * 24 * 60 * 60,
+  },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        // Only set domain in production and only if NEXTAUTH_URL is available
+        ...(process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL && {
+          domain: process.env.NEXTAUTH_URL.replace(/^https?:\/\//, '').replace(/:\d+$/, '')
+        }),
+      },
+    },
   },
   pages: {
     signIn: '/',
@@ -54,14 +73,35 @@ export const authOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        // Add timestamp for token validation
+        token.iat = Math.floor(Date.now() / 1000);
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
+        // Validate token age for security
+        const tokenAge = Math.floor(Date.now() / 1000) - (token.iat || 0);
+        const maxAge = process.env.NODE_ENV === 'production' ? 7 * 24 * 60 * 60 : 30 * 24 * 60 * 60;
+        
+        if (tokenAge > maxAge) {
+          throw new Error('Token expired');
+        }
       }
       return session;
+    },
+  },
+  events: {
+    async signIn({ user, account, profile, isNewUser }) {
+      if (process.env.NODE_ENV === 'production') {
+        console.log(`User signed in: ${user.email}`);
+      }
+    },
+    async signOut({ token }) {
+      if (process.env.NODE_ENV === 'production') {
+        console.log(`User signed out: ${token?.email || 'unknown'}`);
+      }
     },
   },
 };

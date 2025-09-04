@@ -11,7 +11,23 @@ export async function GET(request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    await connectToDatabase();
+    
+    // Ensure database connection with retry logic
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await connectToDatabase();
+        break;
+      } catch (error) {
+        console.error(`Database connection attempt failed (${4 - retries}/3):`, error.message);
+        retries--;
+        if (retries === 0) {
+          throw error;
+        }
+        // Wait 1 second before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
@@ -35,12 +51,46 @@ export async function GET(request) {
     if (fileType) {
       filterCriteria.fileType = fileType;
     }
-    // Get files with pagination
-    const files = await File.find(filterCriteria)
-      .sort(sortCriteria)
-      .skip(offset)
-      .limit(limit + 1) // Get one extra to check if there are more
-      .lean();
+    // Get files with pagination - optimized for production
+    let files;
+    try {
+      // Ensure the File model is ready
+      if (!File.db || File.db.readyState !== 1) {
+        throw new Error('Database not ready');
+      }
+      
+      // Use lean() for better performance and select only needed fields
+      files = await File.find(filterCriteria, {
+        _id: 1,
+        originalName: 1,
+        fileName: 1,
+        size: 1,
+        mimeType: 1,
+        fileType: 1,
+        filePath: 1,
+        thumbnailPath: 1,
+        uploadedAt: 1,
+        createdAt: 1,
+        metadata: 1
+      })
+        .sort(sortCriteria)
+        .skip(offset)
+        .limit(limit + 1) // Get one extra to check if there are more
+        .lean();
+    } catch (dbError) {
+      console.error('Database query error:', dbError);
+      // Return empty result instead of failing
+      return NextResponse.json({
+        success: true,
+        files: [],
+        hasMore: false,
+        pagination: {
+          page,
+          limit,
+          offset
+        }
+      });
+    }
     const hasMore = files.length > limit;
     if (hasMore) {
       files.pop(); // Remove the extra file
@@ -107,4 +157,4 @@ export async function DELETE(request) {
       { status: 500 }
     );
   }
-}
+}

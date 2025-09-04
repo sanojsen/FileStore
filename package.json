@@ -7,8 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "type-check": "tsc --noEmit",
     "cleanup": "node scripts/cleanup.js",
-    "wipe": "node scripts/cleanup.js"
+    "wipe": "node scripts/cleanup.js",
+    "prod:build": "NODE_ENV=production next build",
+    "prod:start": "NODE_ENV=production next start",
+    "health-check": "node -e \"import('./src/lib/envValidation.js').then(m => m.validateEnvironment())\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
