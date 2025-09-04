@@ -16,6 +16,12 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
@@ -79,8 +85,8 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: process.env.NODE_ENV === 'production' 
-              ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self' blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev; worker-src 'self'; child-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; manifest-src 'self';"
-              : "default-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev; connect-src 'self' ws: wss:; media-src 'self' blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev;"
+              ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com; connect-src 'self' https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com; font-src 'self'; object-src 'none'; media-src 'self' blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com; worker-src 'self'; child-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; manifest-src 'self';"
+              : "default-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com; connect-src 'self' ws: wss: https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com; media-src 'self' blob: https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev https://filestore-bucket.f48c3feb11177cca252f419459bc269a.r2.cloudflarestorage.com;"
           },
         ],
       },

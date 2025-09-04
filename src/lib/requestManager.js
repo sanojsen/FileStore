@@ -18,17 +18,13 @@ class RequestManager {
     // Check cache first
     const cached = this.cache.get(key);
     if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
-      console.log(`[RequestManager] Returning cached data for ${key}`);
       return cached.data;
     }
 
     // Check if request is already in progress
     if (this.activeRequests.has(key)) {
-      console.log(`[RequestManager] Request already in progress for ${key}, waiting...`);
       return this.activeRequests.get(key);
     }
-
-    console.log(`[RequestManager] Starting new request for ${key}`);
 
     // Create new request
     const params = new URLSearchParams({

@@ -86,8 +86,6 @@ class HEICConverter {
    */
   static async convertToJPEG(heicFile, quality = 0.8) {
     try {
-      console.log('🔄 Starting HEIC conversion:', heicFile.name);
-
       // Check file size
       if (heicFile.size > 25 * 1024 * 1024) { // 25MB limit
         throw new Error('File too large for client-side conversion (>25MB)');
@@ -101,7 +99,6 @@ class HEICConverter {
       }
 
       // Perform conversion
-      console.log('⚡ Converting HEIC to JPEG...');
       const startTime = Date.now();
 
       const jpegBlob = await heic2any({

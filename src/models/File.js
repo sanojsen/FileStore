@@ -6,8 +6,7 @@ const fileSchema = new mongoose.Schema({
   },
   userId: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   originalName: {
     type: String,
@@ -44,12 +43,10 @@ const fileSchema = new mongoose.Schema({
   },
   uploadedAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   createdAt: {
     type: Date,
-    index: true,
     default: Date.now,
     // This field represents the actual date when the content was created/taken,
     // not the upload date. For photos/videos, this comes from EXIF metadata.
@@ -94,11 +91,6 @@ const fileSchema = new mongoose.Schema({
   timestamps: false,
   _id: false
 });
-// Add indexes for better performance
-fileSchema.index({ userId: 1, uploadedAt: -1 });
-fileSchema.index({ userId: 1, createdAt: -1 });
-fileSchema.index({ userId: 1, 'metadata.createdDate': -1 });
-fileSchema.index({ userId: 1, fileType: 1 });
 // Static method to determine file type from MIME type
 fileSchema.statics.getFileType = function(mimeType) {
   if (!mimeType) return 'other';
@@ -117,6 +109,14 @@ fileSchema.statics.getFileType = function(mimeType) {
       mimeType.includes('7z')) return 'archive';
   return 'other';
 };
+// Add compound indexes for better query performance (consolidated)
+fileSchema.index({ userId: 1, uploadedAt: -1 });
+fileSchema.index({ userId: 1, createdAt: -1 });
+fileSchema.index({ userId: 1, 'metadata.createdDate': -1 });
+fileSchema.index({ userId: 1, fileType: 1 });
+fileSchema.index({ userId: 1, fileType: 1, uploadedAt: -1 });
+fileSchema.index({ userId: 1, fileType: 1, createdAt: -1 });
+
 // Instance method to get display name
 fileSchema.methods.getDisplayName = function() {
   return this.originalName || this.fileName;

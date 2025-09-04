@@ -67,10 +67,6 @@ export const connectToDatabase = async () => {
   }
   
   try {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔌 Attempting to connect to MongoDB...');
-    }
-    
     const mongooseOptions = {
       bufferCommands: true,
       maxPoolSize: process.env.NODE_ENV === 'production' ? 20 : 10,
@@ -88,10 +84,6 @@ export const connectToDatabase = async () => {
     
     await mongoose.connect(uri, mongooseOptions);
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ MongoDB connected successfully');
-    }
-    
     // Set up connection event listeners for production monitoring
     mongoose.connection.on('error', (error) => {
       console.error('❌ MongoDB connection error:', error);
@@ -99,10 +91,6 @@ export const connectToDatabase = async () => {
     
     mongoose.connection.on('disconnected', () => {
       console.warn('⚠️ MongoDB disconnected');
-    });
-    
-    mongoose.connection.on('reconnected', () => {
-      console.log('🔄 MongoDB reconnected');
     });
     
     return mongoose.connections[0];

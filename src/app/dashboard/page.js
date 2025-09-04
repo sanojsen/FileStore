@@ -47,7 +47,7 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
       setHighResLoaded(true);
     }
   }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
-  const handleImageLoad = (e) => {
+  const handleImageLoad = useCallback((e) => {
     setImageLoaded(true);
     setImageError(false);
     // Set the actual width of the loaded image to the container
@@ -57,11 +57,12 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
       const naturalWidth = (img.naturalWidth / img.naturalHeight) * containerHeight;
       setImageWidth(`${naturalWidth}px`);
     }
-  };
-  const handleImageError = (e) => {
+  }, []);
+  
+  const handleImageError = useCallback((e) => {
     setImageError(true);
     setImageLoaded(true); // Hide loading indicator even on error
-  };
+  }, []);
   // If no valid URL, show error immediately
   if (!lowResUrl) {
     return (
@@ -136,7 +137,7 @@ export default function Dashboard() {
   
   // Debug session changes - only in development
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV === 'development') {
       const timeoutId = setTimeout(() => {
         logger.debug(`Session changed - Status: ${status}, Session ID: ${session?.user?.id || 'none'}`);
       }, 100);
@@ -188,13 +189,11 @@ export default function Dashboard() {
     
     // Prevent multiple simultaneous fetches of the same type
     if (fetchInProgressRef.current && !reset) {
-      console.log('[Dashboard] Fetch already in progress, skipping');
       return;
     }
     
     // Prevent duplicate fetches with same parameters
     if (lastFetchParamsRef.current === fetchKey && !reset) {
-      console.log('[Dashboard] Same fetch parameters, skipping duplicate');
       return;
     }
     
@@ -209,8 +208,6 @@ export default function Dashboard() {
         setLoadingMore(true);
       }
       
-      console.log(`[Dashboard] Starting fetch - Page: ${pageNum}, Reset: ${reset}, Filter: ${filtersRef.current.filter}, Sort: ${filtersRef.current.sortBy}`);
-      
       const data = await requestManager.fetchFiles(pageNum, filtersRef.current.filter, filtersRef.current.sortBy);
       
       if (reset || pageNum === 1) {
@@ -218,14 +215,12 @@ export default function Dashboard() {
         const uniqueFiles = data.files.filter((file, index, self) => 
           index === self.findIndex(f => f._id === file._id)
         );
-        console.log(`[Dashboard] Setting ${uniqueFiles.length} files (reset/initial)`);
         setFiles(uniqueFiles);
       } else {
         // Prevent duplicates by creating a Map of unique files by ID
         setFiles(prev => {
           const existingIds = new Set(prev.map(f => f._id));
           const newUniqueFiles = data.files.filter(f => !existingIds.has(f._id));
-          console.log(`[Dashboard] Adding ${newUniqueFiles.length} new files to existing ${prev.length}`);
           return [...prev, ...newUniqueFiles];
         });
       }
@@ -270,8 +265,6 @@ export default function Dashboard() {
   }, [hasMore, loadingMore, loading, page, fetchFiles]);
   // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
-    console.log(`[Dashboard] useEffect triggered - Status: ${status}, Session: ${!!session}, Filter: ${filter}, Sort: ${sortBy}, Initialized: ${isInitializedRef.current}`);
-    
     if (status === 'authenticated' && session) {
       // Create a unique key for this effect
       const effectKey = `${filter}-${sortBy}`;
@@ -324,7 +317,6 @@ export default function Dashboard() {
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
-          console.log('[Dashboard] Loading more files via intersection observer');
           // Add a small delay to prevent rapid successive calls
           setTimeout(() => {
             if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
@@ -522,8 +514,6 @@ export default function Dashboard() {
   
   // Separate useEffect for computing grouped files and formatted dates
   useEffect(() => {
-    console.log('[Dashboard] Computing grouped files from', files.length, 'files');
-    
     // First, deduplicate the files array completely
     const uniqueFiles = files.filter((file, index, self) => 
       index === self.findIndex(f => f._id === file._id)

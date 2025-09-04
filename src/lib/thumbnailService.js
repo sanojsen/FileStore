@@ -363,14 +363,11 @@ export class ThumbnailService {
       }, 20000);
 
       const tryCapture = (seekTime) => {
-        console.log(`Attempting video capture at ${seekTime}s (attempt ${attemptCount + 1})`);
-        
         video.onseeked = () => {
           try {
             // Add a small delay to ensure the frame is fully rendered
             setTimeout(() => {
               try {
-                console.log(`🎬 Video seeked to ${seekTime}s, attempting capture...`);
                 
                 // Calculate new dimensions while maintaining aspect ratio
                 const { width: newWidth, height: newHeight } = this.calculateDimensions(
@@ -407,13 +404,11 @@ export class ThumbnailService {
                 }
 
                 const brightRatio = brightPixels / (totalPixels / 10);
-                console.log(`📊 Frame brightness analysis: ${brightRatio.toFixed(2)} at time ${seekTime}s (${brightPixels} bright pixels out of ${Math.floor(totalPixels / 10)} sampled)`);
 
                 // If frame is too dark and we haven't exhausted attempts, try another timestamp
                 if (brightRatio < 0.1 && attemptCount < maxAttempts - 1) {
                   attemptCount++;
                   const newSeekTime = Math.min(attemptCount * 2, video.duration * 0.5);
-                  console.log(`🔄 Frame too dark (ratio: ${brightRatio.toFixed(2)}), trying again at ${newSeekTime}s (attempt ${attemptCount + 1})`);
                   tryCapture(newSeekTime);
                   return;
                 }
@@ -429,7 +424,6 @@ export class ThumbnailService {
                   }
 
                   if (blob) {
-                    console.log(`Video thumbnail created successfully: ${newWidth}x${newHeight}, brightness: ${brightRatio.toFixed(2)}`);
                     resolve({
                       blob,
                       width: newWidth,
@@ -459,8 +453,6 @@ export class ThumbnailService {
 
       video.onloadedmetadata = () => {
         try {
-          console.log(`Video metadata loaded: ${video.videoWidth}x${video.videoHeight}, duration: ${video.duration}s`);
-          
           // Validate video dimensions
           if (video.videoWidth === 0 || video.videoHeight === 0) {
             clearTimeout(timeout);
@@ -488,7 +480,7 @@ export class ThumbnailService {
       };
 
       video.onloadeddata = () => {
-        console.log('Video data loaded, ready for thumbnail generation');
+        // Video data loaded
       };
 
       video.onerror = (event) => {
@@ -526,8 +518,6 @@ export class ThumbnailService {
         // Create object URL and set as source
         objectUrl = URL.createObjectURL(file);
         video.src = objectUrl;
-        
-        console.log(`Starting video thumbnail generation for ${file.name}`);
       } catch (error) {
         clearTimeout(timeout);
         reject(new Error(`Failed to create video object URL: ${error.message}`));

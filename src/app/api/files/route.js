@@ -59,8 +59,8 @@ export async function GET(request) {
         throw new Error('Database not ready');
       }
       
-      // Use lean() for better performance and select only needed fields
-      files = await File.find(filterCriteria, {
+      // Use projection to only fetch required fields for better performance
+      const projection = {
         _id: 1,
         originalName: 1,
         fileName: 1,
@@ -71,12 +71,17 @@ export async function GET(request) {
         thumbnailPath: 1,
         uploadedAt: 1,
         createdAt: 1,
-        metadata: 1
-      })
+        'metadata.dateTime': 1,
+        'metadata.width': 1,
+        'metadata.height': 1
+      };
+      
+      files = await File.find(filterCriteria, projection)
         .sort(sortCriteria)
         .skip(offset)
         .limit(limit + 1) // Get one extra to check if there are more
-        .lean();
+        .lean()
+        .exec();
     } catch (dbError) {
       console.error('Database query error:', dbError);
       // Return empty result instead of failing

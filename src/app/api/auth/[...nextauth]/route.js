@@ -90,15 +90,11 @@ export const authOptions = {
   },
   events: {
     async signIn({ user, account, profile, isNewUser }) {
-      if (process.env.NODE_ENV === 'production') {
-        console.log(`User signed in: ${user.email}`);
-      }
+      // User signed in
     },
     async signOut({ token }) {
-      if (process.env.NODE_ENV === 'production') {
-        console.log(`User signed out: ${token?.email || 'unknown'}`);
-      }
-    },
+      // User signed out
+    }
   },
 };
 const handler = NextAuth(authOptions);

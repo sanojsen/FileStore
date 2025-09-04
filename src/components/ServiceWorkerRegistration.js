@@ -16,16 +16,13 @@ export default function ServiceWorkerRegistration() {
           scope: '/'
         })
         .then((registration) => {
-          console.log('SW registered successfully:', registration.scope);
-          
           // Check for updates
           registration.addEventListener('updatefound', () => {
-            console.log('SW update found');
             const newWorker = registration.installing;
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('SW ready to update');
+                  // SW ready to update
                 }
               });
             }

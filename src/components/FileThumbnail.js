@@ -1,6 +1,6 @@
 'use client';
 import Image from 'next/image';
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useCallback } from 'react';
 const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
@@ -51,6 +51,16 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
     setImageLoading(true);
   }, [file._id]);
 
+  const handleImageLoad = useCallback(() => {
+    setImageLoading(false);
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    setImageLoading(false);
+    setImageError(true);
+    setFallbackError(true);
+  }, []);
+
   // Show image/video thumbnail if we have a valid source
   if (imageSrc && (file.fileType === 'image' || file.fileType === 'video')) {
     return (
@@ -66,14 +76,8 @@ const FileThumbnail = memo(({ file, size = 'w-16 h-16', className = '' }) => {
           fill
           className={`object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12.5vw"
-          onLoad={() => {
-            setImageLoading(false);
-          }}
-          onError={() => {
-            setImageLoading(false);
-            setImageError(true);
-            setFallbackError(true);
-          }}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
         {process.env.NODE_ENV === 'development' && (
           <div className="absolute top-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5 rounded">

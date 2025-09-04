@@ -64,7 +64,9 @@ const extractVideoMetadata = (file) => {
                 
                 if (!isNaN(extractedDate.getTime()) && extractedDate.getFullYear() > 2000) {
                   creationDate = extractedDate;
-                  console.log('Extracted date from filename:', file.name, '->', creationDate);
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('Extracted date from filename:', file.name, '->', creationDate);
+                  }
                   break;
                 }
               } catch (err) {
@@ -78,17 +80,7 @@ const extractVideoMetadata = (file) => {
           metadata.dateTime = {
             taken: creationDate.toISOString()
           };
-          console.log(`📅 Video creation date extracted:`, {
-            fileName: file.name,
-            extractedDate: creationDate.toISOString(),
-            source: 'filename_pattern'
-          });
         } else {
-          console.log(`⚠️ No creation date found for video:`, {
-            fileName: file.name,
-            lastModified: file.lastModified ? new Date(file.lastModified).toISOString() : 'none',
-            fallback: 'will_use_file_lastModified_or_upload_time'
-          });
         }
         
         URL.revokeObjectURL(url);
@@ -346,20 +338,9 @@ export default function Upload() {
         });
 
         try {
-          console.log(`🎯 Starting thumbnail creation for: ${file.name}`, {
-            type: file.type,
-            size: file.size,
-            isHEIC: isHEIC
-          });
-
           const thumbnail = await ThumbnailService.createThumbnail(file, 300);
           
           if (thumbnail) {
-            console.log(`✅ Thumbnail created successfully:`, {
-              source: thumbnail.source,
-              width: thumbnail.width,
-              height: thumbnail.height
-            });
 
             if (uploadInfo.thumbnailPresignedUrl) {
               const thumbnailUploadResponse = await fetch(uploadInfo.thumbnailPresignedUrl, {
@@ -371,8 +352,6 @@ export default function Upload() {
               thumbnailCreated = thumbnailUploadResponse.ok;
               
               if (thumbnailCreated) {
-                console.log(`📤 Thumbnail uploaded successfully for: ${file.name}`);
-                
                 if (thumbnail.source === 'placeholder') {
                   updateFileState(fileId, {
                     currentStep: 'Placeholder thumbnail created (HEIC conversion unavailable)'
@@ -397,7 +376,6 @@ export default function Upload() {
             updateFileState(fileId, {
               currentStep: 'HEIC processing failed - file will upload without thumbnail'
             });
-            console.log('📸 HEIC thumbnail failed - this is expected if heic2any library is not available');
           }
         }
       }
@@ -412,7 +390,6 @@ export default function Upload() {
         try {
           const clientVideoMetadata = await extractVideoMetadata(file);
           extractedMetadata = { ...extractedMetadata, ...clientVideoMetadata };
-          console.log('Extracted client-side video metadata:', clientVideoMetadata);
         } catch (videoMetadataError) {
           console.warn('Failed to extract client-side video metadata:', videoMetadataError);
         }

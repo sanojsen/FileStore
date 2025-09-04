@@ -45,7 +45,6 @@ export function validateEnvironment() {
     }
   });
 
-  console.log('✅ Environment validation passed');
   return true;
 }
 
@@ -75,14 +74,6 @@ export function checkProductionReadiness() {
     name: 'Production Optimizations', 
     status: hasOptimizations ? 'PASS' : 'WARN',
     note: hasOptimizations ? null : 'Running in development mode'
-  });
-
-  console.log('\n🔍 Production Readiness Check:');
-  checks.forEach(check => {
-    const icon = check.status === 'PASS' ? '✅' : check.status === 'WARN' ? '⚠️' : '❌';
-    console.log(`${icon} ${check.name}: ${check.status}`);
-    if (check.error) console.log(`   Error: ${check.error}`);
-    if (check.note) console.log(`   Note: ${check.note}`);
   });
 
   const hasFailures = checks.some(check => check.status === 'FAIL');

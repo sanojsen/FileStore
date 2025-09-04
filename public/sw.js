@@ -19,11 +19,9 @@ const CACHE_STRATEGIES = {
 
 // Install event - cache static assets with better error handling
 self.addEventListener('install', (event) => {
-  console.log(`Service Worker: Install v${APP_VERSION}`);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Service Worker: Caching static assets');
         // Use Promise.allSettled to handle individual failures gracefully
         return Promise.allSettled(
           STATIC_CACHE_URLS.map(url => 
@@ -31,9 +29,6 @@ self.addEventListener('install', (event) => {
               .catch(error => console.warn(`Failed to cache ${url}:`, error))
           )
         );
-      })
-      .then(() => {
-        console.log('Service Worker: Static assets cached successfully');
       })
       .catch((error) => {
         console.error('Service Worker: Cache failed', error);
@@ -45,14 +40,11 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activate');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       const oldCaches = cacheNames.filter(cache => cache !== CACHE_NAME);
       
       if (oldCaches.length > 0) {
-        console.log('Service Worker: Found old caches, notifying clients of update');
-        
         // Notify all clients about the update
         self.clients.matchAll().then(clients => {
           clients.forEach(client => {
@@ -67,7 +59,6 @@ self.addEventListener('activate', (event) => {
       
       return Promise.all(
         oldCaches.map((cache) => {
-          console.log('Service Worker: Deleting old cache', cache);
           return caches.delete(cache);
         })
       );
@@ -191,7 +182,6 @@ self.addEventListener('fetch', (event) => {
 // Background sync for failed uploads (optional)
 self.addEventListener('sync', (event) => {
   if (event.tag === 'background-sync') {
-    console.log('Service Worker: Background sync');
     event.waitUntil(
       // Implement background sync logic here if needed
       Promise.resolve()
@@ -241,7 +231,6 @@ self.addEventListener('notificationclick', (event) => {
 // Handle messages from clients
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'CHECK_VERSION') {
-    console.log('Service Worker: Version check requested');
     event.ports[0].postMessage({ 
       success: true, 
       version: APP_VERSION,
@@ -251,19 +240,16 @@ self.addEventListener('message', (event) => {
   }
   
   if (event.data && event.data.type === 'CLEAR_CACHE') {
-    console.log('Service Worker: Clearing all caches');
     event.waitUntil(
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            console.log('Service Worker: Deleting cache', cacheName);
             return caches.delete(cacheName);
           })
         );
       }).then(() => {
         // Notify the client that cache is cleared
         event.ports[0].postMessage({ success: true });
-        console.log('Service Worker: All caches cleared successfully');
       }).catch((error) => {
         console.error('Service Worker: Error clearing caches', error);
         event.ports[0].postMessage({ success: false, error: error.message });
@@ -272,7 +258,6 @@ self.addEventListener('message', (event) => {
   }
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
-    console.log('Service Worker: Skipping waiting');
     self.skipWaiting();
   }
 });
