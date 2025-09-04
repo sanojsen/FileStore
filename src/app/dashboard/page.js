@@ -22,6 +22,8 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
   const [highResLoaded, setHighResLoaded] = useState(false);
   const [imageWidth, setImageWidth] = useState('auto');
   const [imageError, setImageError] = useState(false);
+  const lastFileIdRef = useRef(null);
+  
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
   // Get thumbnail and original URLs
   const thumbnailUrl = file.thumbnailUrl || (file.thumbnailPath ? `${baseUrl}${file.thumbnailPath}` : null);
@@ -29,23 +31,28 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
   // Use thumbnail for videos, original for images
   const lowResUrl = thumbnailUrl;
   const highResUrl = file.fileType === 'image' ? originalUrl : thumbnailUrl;
+  
   useEffect(() => {
-    // Reset all states when file changes
-    setImageLoaded(false);
-    setHighResLoaded(false);
-    setImageWidth('auto');
-    setImageError(false);
-    // For images, preload the high-res version
-    if (file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
-      const img = new Image();
-      img.onload = () => setHighResLoaded(true);
-      img.onerror = () => setHighResLoaded(true); // Show thumbnail if high-res fails
-      img.src = highResUrl;
-    } else {
-      // For videos or when no separate high-res version exists
-      setHighResLoaded(true);
+    // Only reset states when file actually changes
+    if (lastFileIdRef.current !== file._id) {
+      setImageLoaded(false);
+      setHighResLoaded(false);
+      setImageWidth('auto');
+      setImageError(false);
+      lastFileIdRef.current = file._id;
+      
+      // For images, preload the high-res version
+      if (file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
+        const img = new Image();
+        img.onload = () => setHighResLoaded(true);
+        img.onerror = () => setHighResLoaded(true); // Show thumbnail if high-res fails
+        img.src = highResUrl;
+      } else {
+        // For videos or when no separate high-res version exists
+        setHighResLoaded(true);
+      }
     }
-  }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
+  }, [file._id, file.fileType, originalUrl, thumbnailUrl]); // Reduced dependencies
   const handleImageLoad = (e) => {
     setImageLoaded(true);
     setImageError(false);
@@ -128,6 +135,13 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
 });
 
 ProgressiveImage.displayName = 'ProgressiveImage';
+
+// Memoize the component to prevent unnecessary re-renders
+const MemoizedProgressiveImage = React.memo(ProgressiveImage, (prevProps, nextProps) => {
+  // Only re-render if the file ID changes
+  return prevProps.file._id === nextProps.file._id && 
+         prevProps.className === nextProps.className;
+});
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -236,14 +250,14 @@ export default function Dashboard() {
       setLoading(false);
       setLoadingMore(false);
       fetchInProgressRef.current = false;
-      // Clear the fetch key after a delay to allow for fresh fetches
+      // Clear the fetch key after a longer delay to allow for fresh fetches
       setTimeout(() => {
         if (lastFetchParamsRef.current === fetchKey) {
           lastFetchParamsRef.current = null;
         }
-      }, 1000);
+      }, 2000); // Increased timeout to 2 seconds
     }
-  }, []);
+  }, []); // No dependencies to prevent recreation
 
   // Fetch total files count from stats API
   const fetchTotalFiles = useCallback(async () => {
@@ -262,14 +276,15 @@ export default function Dashboard() {
   // Load more files (defined before useEffect that uses it)
   const loadMore = useCallback(() => {
     if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
+      console.log('[Dashboard] LoadMore called - current page:', page);
       fetchFiles(page + 1, false);
     }
-  }, [hasMore, loadingMore, loading, page, fetchFiles]);
+  }, [hasMore, loadingMore, loading, page]); // Removed fetchFiles dependency
   // Initial load - only when session is authenticated and filter/sort changes
   useEffect(() => {
     console.log(`[Dashboard] useEffect triggered - Status: ${status}, Session: ${!!session}, Filter: ${filter}, Sort: ${sortBy}, Initialized: ${isInitializedRef.current}`);
     
-    if (status === 'authenticated' && session) {
+    if (status === 'authenticated' && session?.user?.id) {
       // Create a unique key for this effect
       const effectKey = `${filter}-${sortBy}`;
       
@@ -289,7 +304,7 @@ export default function Dashboard() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [status, session?.user?.id, filter, sortBy, fetchFiles, fetchTotalFiles]); // Use session.user.id instead of full session
+  }, [status, session?.user?.id, filter, sortBy]); // Removed fetchFiles and fetchTotalFiles dependencies
   // Handle visibility change for data refresh
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -327,25 +342,27 @@ export default function Dashboard() {
             if (hasMore && !loadingMore && !loading && !fetchInProgressRef.current) {
               loadMore();
             }
-          }, 100);
+          }, 150); // Reduced delay but still prevents rapid calls
         }
       },
       {
         root: null,
-        rootMargin: '200px', // Increased from 100px to prevent premature loading
+        rootMargin: '300px', // Increased further to prevent premature loading
         threshold: 0.1
       }
     );
+    
     observerRef.current = observer;
     if (loadMoreRef.current) {
       observer.observe(loadMoreRef.current);
     }
+    
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading, loadMore]); // Now loadMore is properly defined above
+  }, [hasMore, loadingMore, loading]); // Removed loadMore dependency to prevent re-creation
   // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -1159,7 +1176,7 @@ export default function Dashboard() {
                           {/* Thumbnail with aspect ratio maintained */}
                           <div className="h-full relative">
                             {file.thumbnailUrl || (file.fileType === 'image' || file.fileType === 'video') ? (
-                              <ProgressiveImage 
+                              <MemoizedProgressiveImage 
                                 file={file}
                                 className="h-full w-auto object-contain"
                                 style={{ maxWidth: 'none' }}
