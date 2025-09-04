@@ -4,6 +4,7 @@ import AuthProvider from "../components/AuthProvider";
 import InstallPrompt from "../components/InstallPrompt";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import PWAHandler from "../components/PWAHandler";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,15 +38,24 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="theme-color" content="#4f46e5" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          {children}
-          <InstallPrompt />
-          <ServiceWorkerRegistration />
-          <PWAHandler />
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            {children}
+            <InstallPrompt />
+            <ServiceWorkerRegistration />
+            <PWAHandler />
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

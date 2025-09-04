@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import React from 'react';
 import requestManager from '../../lib/requestManager';
+import NetworkStatus from '../../components/NetworkStatus';
 
 // Use dynamic import with no SSR to avoid bundling issues
 const FileThumbnail = dynamic(() => import('../../components/FileThumbnail'), {
@@ -856,6 +857,7 @@ export default function Dashboard() {
   }
   return (
     <div className="min-h-screen bg-gray-50">
+      <NetworkStatus />
       {/* Compact Header */}
       <header className="bg-white shadow-sm border-b border-gray-100">
         <div className="mx-auto px-4 sm:px-6 lg:px-8">

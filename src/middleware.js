@@ -1,17 +1,47 @@
 import { withAuth } from 'next-auth/middleware';
+import { NextResponse } from 'next/server';
+
 export default withAuth(
   function middleware(req) {
-    // Additional logic can be added here if needed
+    const { pathname } = req.nextUrl;
+    
+    // Add mobile-specific headers
+    const response = NextResponse.next();
+    
+    // Add mobile viewport headers
+    response.headers.set('X-UA-Compatible', 'IE=edge');
+    response.headers.set('viewport', 'width=device-width, initial-scale=1, shrink-to-fit=no');
+    
+    // Handle PWA requests
+    if (pathname === '/manifest.json' || pathname === '/sw.js') {
+      response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+    }
+    
+    // Add security headers for mobile
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('X-Frame-Options', 'DENY');
+    
+    return response;
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
-        // Return true if user has a valid token
+        const { pathname } = req.nextUrl;
+        
+        // Allow public routes
+        if (pathname === '/' || pathname === '/register' || pathname.startsWith('/api/auth/')) {
+          return true;
+        }
+        
+        // Require authentication for protected routes
         return !!token;
       },
     },
   }
 );
+
 export const config = {
-  matcher: ['/dashboard/:path*', '/upload/:path*', '/files/:path*'],
-};
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js).*)',
+  ],
+};
