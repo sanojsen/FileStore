@@ -58,10 +58,6 @@ export const authOptions = {
         sameSite: 'lax',
         path: '/',
         secure: process.env.NODE_ENV === 'production',
-        // Only set domain in production and only if NEXTAUTH_URL is available
-        ...(process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL && {
-          domain: process.env.NEXTAUTH_URL.replace(/^https?:\/\//, '').replace(/:\d+$/, '')
-        }),
       },
     },
   },
