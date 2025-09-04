@@ -16,16 +16,39 @@ export default function PWAHandler() {
                     window.navigator.standalone ||
                     document.referrer.includes('android-app://');
 
-      if (isPWA && status === 'loading') {
-        // If we're in PWA mode and still loading auth, wait a bit longer
-        const timeout = setTimeout(() => {
-          if (status === 'loading') {
-            console.log('PWA: Auth taking too long, refreshing...');
-            window.location.reload();
-          }
-        }, 5000);
+      if (isPWA) {
+        console.log('PWA: Running in standalone mode');
+        
+        // Handle auth loading state for PWA
+        if (status === 'loading') {
+          const timeout = setTimeout(() => {
+            if (status === 'loading') {
+              console.log('PWA: Auth taking too long, attempting refresh...');
+              // Try to refresh the page once, then redirect to home
+              if (!sessionStorage.getItem('pwa-refresh-attempted')) {
+                sessionStorage.setItem('pwa-refresh-attempted', 'true');
+                window.location.reload();
+              } else {
+                sessionStorage.removeItem('pwa-refresh-attempted');
+                router.push('/');
+              }
+            }
+          }, 8000); // Increased timeout for slower networks
 
-        return () => clearTimeout(timeout);
+          return () => clearTimeout(timeout);
+        } else {
+          // Clear the refresh flag when auth completes
+          sessionStorage.removeItem('pwa-refresh-attempted');
+        }
+
+        // Handle PWA navigation state
+        if (status === 'unauthenticated') {
+          const currentPath = window.location.pathname;
+          if (currentPath.startsWith('/dashboard') || currentPath.startsWith('/upload')) {
+            console.log('PWA: Redirecting unauthenticated user to home');
+            router.push('/');
+          }
+        }
       }
     };
 
@@ -35,8 +58,19 @@ export default function PWAHandler() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-          // Handle service worker updates
-          console.log('PWA: Update available');
+          console.log('PWA: Update available, version:', event.data.version);
+          // Optionally show user notification about update
+          // For now, just log it
+        }
+      });
+
+      // Register service worker if not already registered
+      navigator.serviceWorker.getRegistration().then(registration => {
+        if (!registration) {
+          console.log('PWA: Registering service worker...');
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('PWA: Service worker registered'))
+            .catch(err => console.error('PWA: Service worker registration failed', err));
         }
       });
     }

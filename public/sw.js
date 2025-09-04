@@ -1,4 +1,4 @@
-const APP_VERSION = '0.1.1'; // This should match package.json version
+const APP_VERSION = '0.1.2'; // Updated version for cache invalidation
 const CACHE_NAME = `filestores-v${APP_VERSION}`;
 const STATIC_CACHE_URLS = [
   '/',
@@ -7,22 +7,25 @@ const STATIC_CACHE_URLS = [
   '/register',
   '/manifest.json',
   '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/icons/icon-512x512.png',
+  '/favicon-32x32.png',
+  '/apple-touch-icon.png'
 ];
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Install');
+  console.log('Service Worker: Install', APP_VERSION);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching static assets');
-        return cache.addAll(STATIC_CACHE_URLS);
+        return cache.addAll(STATIC_CACHE_URLS.map(url => new Request(url, { cache: 'reload' })));
       })
       .catch((error) => {
-        console.log('Service Worker: Cache failed', error);
+        console.error('Service Worker: Cache failed', error);
       })
   );
+  // Force immediate activation
   self.skipWaiting();
 });
 
@@ -123,8 +126,39 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         // Offline fallback
         if (event.request.destination === 'document') {
-          // For HTML pages, redirect to root if offline
-          return caches.match('/') || caches.match('/dashboard');
+          // For HTML pages, try root first, then dashboard
+          return caches.match('/').then(response => {
+            if (response) return response;
+            return caches.match('/dashboard');
+          }).then(response => {
+            if (response) return response;
+            // Create a simple offline page if nothing cached
+            return new Response(`
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <title>FileStores - Offline</title>
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <style>
+                    body { font-family: sans-serif; text-align: center; padding: 50px; background: #f9fafb; }
+                    .container { max-width: 400px; margin: 0 auto; }
+                    .icon { font-size: 64px; margin-bottom: 20px; }
+                    button { background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="icon">📱</div>
+                    <h1>You're Offline</h1>
+                    <p>Please check your internet connection and try again.</p>
+                    <button onclick="window.location.reload()">Retry</button>
+                  </div>
+                </body>
+              </html>
+            `, {
+              headers: { 'Content-Type': 'text/html' }
+            });
+          });
         }
         
         // Return a generic offline response for images
