@@ -1,4 +1,4 @@
-const APP_VERSION = '1.0.0'; // Production version
+const APP_VERSION = '1.0.1'; // Updated for mobile image fix
 const CACHE_NAME = `filestores-v${APP_VERSION}`;
 const STATIC_CACHE_URLS = [
   '/',
@@ -71,6 +71,40 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // Handle image requests from R2/Cloudflare specifically
+  if (event.request.url.includes('r2.dev') || event.request.url.includes('r2.cloudflarestorage.com')) {
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
+            // Return cached image immediately for better mobile performance
+            return response;
+          }
+          
+          // Fetch from network and cache for future use
+          return fetch(event.request, { redirect: 'follow' })
+            .then((fetchResponse) => {
+              if (fetchResponse && fetchResponse.status === 200) {
+                const responseToCache = fetchResponse.clone();
+                caches.open(CACHE_NAME)
+                  .then((cache) => {
+                    cache.put(event.request, responseToCache);
+                  });
+              }
+              return fetchResponse;
+            })
+            .catch(() => {
+              // Return a placeholder for images if offline
+              return new Response(
+                '<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#9ca3af">Offline</text></svg>',
+                { headers: { 'Content-Type': 'image/svg+xml' } }
+              );
+            });
+        })
+    );
     return;
   }
 

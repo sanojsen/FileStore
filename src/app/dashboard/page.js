@@ -23,30 +23,45 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
   const [highResLoaded, setHighResLoaded] = useState(false);
   const [imageWidth, setImageWidth] = useState('auto');
   const [imageError, setImageError] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_PUBLIC_URL || 'https://pub-bdab05697f9f4c00b9db07779b146ba1.r2.dev';
+  
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   // Get thumbnail and original URLs
   const thumbnailUrl = file.thumbnailUrl || (file.thumbnailPath ? `${baseUrl}${file.thumbnailPath}` : null);
   const originalUrl = file.fileType === 'image' ? `${baseUrl}${file.filePath}` : thumbnailUrl;
-  // Use thumbnail for videos, original for images
+  
+  // On mobile, prioritize thumbnails to save bandwidth and improve performance
   const lowResUrl = thumbnailUrl;
-  const highResUrl = file.fileType === 'image' ? originalUrl : thumbnailUrl;
+  const highResUrl = isMobile && thumbnailUrl ? thumbnailUrl : (file.fileType === 'image' ? originalUrl : thumbnailUrl);
   useEffect(() => {
-    // Reset all states when file changes
+    // Reset all states when file ID changes (only reload when it's actually a different file)
     setImageLoaded(false);
     setHighResLoaded(false);
     setImageWidth('auto');
     setImageError(false);
-    // For images, preload the high-res version
-    if (file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
+    
+    // On mobile, skip high-res preloading to prevent unnecessary reloads
+    if (!isMobile && file.fileType === 'image' && originalUrl && thumbnailUrl && originalUrl !== thumbnailUrl) {
       const img = new Image();
       img.onload = () => setHighResLoaded(true);
       img.onerror = () => setHighResLoaded(true); // Show thumbnail if high-res fails
       img.src = highResUrl;
     } else {
-      // For videos or when no separate high-res version exists
+      // For mobile, videos, or when no separate high-res version exists
       setHighResLoaded(true);
     }
-  }, [file._id, highResUrl, originalUrl, thumbnailUrl, file.fileType]);
+  }, [file._id, isMobile]); // Only depend on file ID and mobile state
   const handleImageLoad = useCallback((e) => {
     setImageLoaded(true);
     setImageError(false);
@@ -86,14 +101,14 @@ const ProgressiveImage = React.memo(({ file, className, style }) => {
         src={lowResUrl}
         alt={file.originalName}
         className={`${className} relative z-10 transition-opacity duration-300 ${
-          highResLoaded && file.fileType === 'image' ? 'opacity-0' : 'opacity-100'
+          !isMobile && highResLoaded && file.fileType === 'image' ? 'opacity-0' : 'opacity-100'
         }`}
         style={style}
         onLoad={handleImageLoad}
         onError={handleImageError}
       />
-      {/* High-res original (for images only, loads on top) */}
-      {file.fileType === 'image' && highResUrl && lowResUrl && highResUrl !== lowResUrl && !imageError && (
+      {/* High-res original (for images only, loads on top) - Skip on mobile to prevent reloads */}
+      {!isMobile && file.fileType === 'image' && highResUrl && lowResUrl && highResUrl !== lowResUrl && !imageError && (
         <img
           src={highResUrl}
           alt={file.originalName}
