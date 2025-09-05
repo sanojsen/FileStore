@@ -13,7 +13,8 @@ export default function ServiceWorkerRegistration() {
 
       navigator.serviceWorker
         .register('/sw.js', {
-          scope: '/'
+          scope: '/',
+          updateViaCache: 'none' // Don't aggressively check for updates
         })
         .then((registration) => {
           // Check for updates
@@ -22,7 +23,11 @@ export default function ServiceWorkerRegistration() {
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // SW ready to update
+                  // SW ready to update - show non-intrusive notification
+                  const updateEvent = new CustomEvent('sw-update-available', {
+                    detail: { worker: newWorker }
+                  });
+                  window.dispatchEvent(updateEvent);
                 }
               });
             }
@@ -34,13 +39,17 @@ export default function ServiceWorkerRegistration() {
 
       // Listen for service worker messages
       navigator.serviceWorker.addEventListener('message', (event) => {
-        console.log('Message from SW:', event.data);
+        if (event.data && event.data.type === 'UPDATE_AVAILABLE' && !event.data.silent) {
+          // Only show notification if not marked as silent
+          console.log('Update available:', event.data.version);
+          // Could show a toast notification here if desired
+        }
       });
 
-      // Handle service worker updates
+      // Handle service worker updates - don't automatically reload
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('SW controller changed - reloading page');
-        window.location.reload();
+        console.log('SW controller changed - update available but not forcing reload');
+        // Don't reload automatically - let user choose when to refresh
       });
     } else {
       console.warn('Service Worker not supported');

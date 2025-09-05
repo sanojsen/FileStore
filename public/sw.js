@@ -1,4 +1,4 @@
-const APP_VERSION = '1.0.1'; // Updated for mobile image fix
+const APP_VERSION = '1.0.2'; // Fixed PWA auto-reload issues
 const CACHE_NAME = `filestores-v${APP_VERSION}`;
 const STATIC_CACHE_URLS = [
   '/',
@@ -63,8 +63,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Only claim new clients, don't force existing ones to reload
-  return self.clients.claim();
+  // Don't claim clients immediately - prevents forced reloads
 });
 
 // Fetch event - serve from cache when offline
