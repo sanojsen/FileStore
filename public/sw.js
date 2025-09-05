@@ -34,8 +34,7 @@ self.addEventListener('install', (event) => {
         console.error('Service Worker: Cache failed', error);
       })
   );
-  // Force immediate activation
-  self.skipWaiting();
+  // Don't force immediate activation - wait for user interaction
 });
 
 // Activate event - clean up old caches
@@ -45,13 +44,13 @@ self.addEventListener('activate', (event) => {
       const oldCaches = cacheNames.filter(cache => cache !== CACHE_NAME);
       
       if (oldCaches.length > 0) {
-        // Notify all clients about the update
+        // Quietly notify clients about update without forcing reload
         self.clients.matchAll().then(clients => {
           clients.forEach(client => {
             client.postMessage({
               type: 'UPDATE_AVAILABLE',
               version: APP_VERSION,
-              cacheName: CACHE_NAME
+              silent: true // Don't force immediate action
             });
           });
         });
@@ -64,7 +63,8 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  self.clients.claim();
+  // Only claim new clients, don't force existing ones to reload
+  return self.clients.claim();
 });
 
 // Fetch event - serve from cache when offline
@@ -142,11 +142,56 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Use network-first strategy for HTML pages to prevent reload loops
+  if (event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request, { redirect: 'follow' })
+        .then((fetchResponse) => {
+          if (fetchResponse && fetchResponse.status === 200 && !fetchResponse.redirected) {
+            const responseToCache = fetchResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return fetchResponse;
+        })
+        .catch(() => {
+          // Only serve from cache if network fails
+          return caches.match(event.request).then(response => {
+            if (response) return response;
+            return caches.match('/').then(fallback => {
+              if (fallback) return fallback;
+              // Simple offline page
+              return new Response(`
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <title>FileStores - Offline</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>body { font-family: sans-serif; text-align: center; padding: 50px; }</style>
+                  </head>
+                  <body>
+                    <h1>You're offline</h1>
+                    <p>Please check your internet connection.</p>
+                  </body>
+                </html>
+              `, { headers: { 'Content-Type': 'text/html' } });
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Cache-first strategy for static assets
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request, { redirect: 'follow' })
+        if (response) {
+          return response;
+        }
+        // Network fallback for cache misses
+        return fetch(event.request, { redirect: 'follow' })
           .then((fetchResponse) => {
             // Don't cache redirected responses or non-successful responses
             if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic' || fetchResponse.redirected) {
@@ -163,50 +208,11 @@ self.addEventListener('fetch', (event) => {
           });
       })
       .catch(() => {
-        // Offline fallback
-        if (event.request.destination === 'document') {
-          // For HTML pages, try root first, then dashboard
-          return caches.match('/').then(response => {
-            if (response) return response;
-            return caches.match('/dashboard');
-          }).then(response => {
-            if (response) return response;
-            // Create a simple offline page if nothing cached
-            return new Response(`
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>FileStores - Offline</title>
-                  <meta name="viewport" content="width=device-width, initial-scale=1">
-                  <style>
-                    body { font-family: sans-serif; text-align: center; padding: 50px; background: #f9fafb; }
-                    .container { max-width: 400px; margin: 0 auto; }
-                    .icon { font-size: 64px; margin-bottom: 20px; }
-                    button { background: #4f46e5; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; }
-                  </style>
-                </head>
-                <body>
-                  <div class="container">
-                    <div class="icon">📱</div>
-                    <h1>You're Offline</h1>
-                    <p>Please check your internet connection and try again.</p>
-                    <button onclick="window.location.reload()">Retry</button>
-                  </div>
-                </body>
-              </html>
-            `, {
-              headers: { 'Content-Type': 'text/html' }
-            });
-          });
-        }
-        
-        // Return a generic offline response for images
+        // Offline fallback for other resources
         if (event.request.destination === 'image') {
           return new Response(
             '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="#f3f4f6"/><text x="100" y="100" text-anchor="middle" dy=".3em" font-family="sans-serif" font-size="14" fill="#9ca3af">Offline</text></svg>',
-            { 
-              headers: { 'Content-Type': 'image/svg+xml' }
-            }
+            { headers: { 'Content-Type': 'image/svg+xml' } }
           );
         }
       })
